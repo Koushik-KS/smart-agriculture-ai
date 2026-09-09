@@ -106,3 +106,27 @@ svm_pred = svm_model.predict(X_test_scaled)
 svm_accuracy = accuracy_score(y_test, svm_pred)
 
 print("SVM Accuracy:", svm_accuracy)
+
+
+from sklearn.metrics import classification_report, confusion_matrix
+
+# Detailed evaluation of Random Forest
+print("\nRandom Forest Classification Report:")
+print(classification_report(y_test, rf_pred))
+
+print("\nRandom Forest Confusion Matrix:")
+print(confusion_matrix(y_test, rf_pred))
+
+import os
+import joblib
+
+# Create model folder
+os.makedirs("model", exist_ok=True)
+
+# Save trained model
+joblib.dump(rf_model, "model/crop_recommendation_model.pkl")
+
+# Save scaler
+joblib.dump(scaler, "model/scaler.pkl")
+
+print("\nModel and scaler saved successfully.")
