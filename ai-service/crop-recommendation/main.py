@@ -61,7 +61,19 @@ def predict_crop(data: CropInput):
     probabilities = model.predict_proba(input_data)[0]
     confidence = probabilities.max() * 100
 
+    if confidence < 60:
+        confidence_level = "low"
+        message = "Low confidence prediction. Consider checking the input conditions."
+    elif confidence < 80:
+        confidence_level = "moderate"
+        message = "Moderate confidence prediction."
+    else:
+        confidence_level = "high"
+        message = "High confidence prediction."
+
     return {
         "recommended_crop": prediction,
-        "confidence": round(confidence, 2)
+        "confidence": round(confidence, 2),
+        "confidence_level": confidence_level,
+        "message": message
     }
