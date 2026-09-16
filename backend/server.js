@@ -44,7 +44,9 @@ app.post("/api/crop-recommendation", async (req, res) => {
     );
 
     res.json(response.data);
+
   } catch (error) {
+
     console.error(
       "Crop AI service error:",
       error.response?.data || error.message
@@ -65,7 +67,9 @@ app.post(
   "/api/plant-disease",
   upload.single("file"),
   async (req, res) => {
+
     try {
+
       if (!req.file) {
         return res.status(400).json({
           message: "Please upload a plant leaf image.",
@@ -74,10 +78,14 @@ app.post(
 
       const formData = new FormData();
 
-      formData.append("file", req.file.buffer, {
-        filename: req.file.originalname,
-        contentType: req.file.mimetype,
-      });
+      formData.append(
+        "file",
+        req.file.buffer,
+        {
+          filename: req.file.originalname,
+          contentType: req.file.mimetype,
+        }
+      );
 
       const response = await axios.post(
         `${DISEASE_AI_URL}/predict`,
@@ -86,12 +94,15 @@ app.post(
           headers: {
             ...formData.getHeaders(),
           },
+
           maxBodyLength: Infinity,
         }
       );
 
       res.json(response.data);
+
     } catch (error) {
+
       console.error(
         "Plant Disease AI service error:",
         error.response?.data || error.message
@@ -110,14 +121,18 @@ app.post(
 // ===============================
 
 app.post("/api/yield-prediction", async (req, res) => {
+
   try {
+
     const response = await axios.post(
       `${YIELD_AI_URL}/predict`,
       req.body
     );
 
     res.json(response.data);
+
   } catch (error) {
+
     console.error(
       "Yield AI service error:",
       error.response?.data || error.message
@@ -135,14 +150,18 @@ app.post("/api/yield-prediction", async (req, res) => {
 // ===============================
 
 app.post("/api/recommendation", async (req, res) => {
+
   try {
+
     const response = await axios.post(
       `${RECOMMENDATION_AI_URL}/recommend`,
       req.body
     );
 
     res.json(response.data);
+
   } catch (error) {
+
     console.error(
       "Recommendation AI service error:",
       error.response?.data || error.message
@@ -163,15 +182,19 @@ app.post(
   "/api/ai-analysis",
   upload.single("file"),
   async (req, res) => {
+
     try {
+
       // --------------------------------
       // Validate leaf image
       // --------------------------------
 
       if (!req.file) {
+
         return res.status(400).json({
           message: "Please upload a plant leaf image.",
         });
+
       }
 
 
@@ -180,13 +203,24 @@ app.post(
       // --------------------------------
 
       const cropInput = {
+
         N: Number(req.body.N),
+
         P: Number(req.body.P),
+
         K: Number(req.body.K),
-        temperature: Number(req.body.temperature),
-        humidity: Number(req.body.humidity),
-        ph: Number(req.body.ph),
-        rainfall: Number(req.body.rainfall),
+
+        temperature:
+          Number(req.body.temperature),
+
+        humidity:
+          Number(req.body.humidity),
+
+        ph:
+          Number(req.body.ph),
+
+        rainfall:
+          Number(req.body.rainfall),
       };
 
 
@@ -195,14 +229,30 @@ app.post(
       // --------------------------------
 
       const yieldInput = {
-        year_start: Number(req.body.year_start),
-        state_name: req.body.state_name,
-        district_name: req.body.district_name,
-        crop_name: req.body.crop_name,
-        crop_type: req.body.crop_type,
-        season: req.body.season,
-        area: Number(req.body.area),
-        previous_yield: Number(req.body.previous_yield),
+
+        year_start:
+          Number(req.body.year_start),
+
+        state_name:
+          req.body.state_name,
+
+        district_name:
+          req.body.district_name,
+
+        crop_name:
+          req.body.crop_name,
+
+        crop_type:
+          req.body.crop_type,
+
+        season:
+          req.body.season,
+
+        area:
+          Number(req.body.area),
+
+        previous_yield:
+          Number(req.body.previous_yield),
       };
 
 
@@ -210,14 +260,18 @@ app.post(
       // Prepare disease request
       // --------------------------------
 
-      const diseaseFormData = new FormData();
+      const diseaseFormData =
+        new FormData();
 
       diseaseFormData.append(
         "file",
         req.file.buffer,
         {
-          filename: req.file.originalname,
-          contentType: req.file.mimetype,
+          filename:
+            req.file.originalname,
+
+          contentType:
+            req.file.mimetype,
         }
       );
 
@@ -231,11 +285,14 @@ app.post(
         diseaseResponse,
         yieldResponse,
       ] = await Promise.all([
+
+        // Crop AI
         axios.post(
           `${CROP_AI_URL}/predict`,
           cropInput
         ),
 
+        // Disease AI
         axios.post(
           `${DISEASE_AI_URL}/predict`,
           diseaseFormData,
@@ -243,14 +300,17 @@ app.post(
             headers: {
               ...diseaseFormData.getHeaders(),
             },
+
             maxBodyLength: Infinity,
           }
         ),
 
+        // Yield AI
         axios.post(
           `${YIELD_AI_URL}/predict`,
           yieldInput
         ),
+
       ]);
 
 
@@ -258,32 +318,52 @@ app.post(
       // Extract AI results
       // --------------------------------
 
-      const cropResult = cropResponse.data;
-      const diseaseResult = diseaseResponse.data;
-      const yieldResult = yieldResponse.data;
+      const cropResult =
+        cropResponse.data;
+
+      const diseaseResult =
+        diseaseResponse.data;
+
+      const yieldResult =
+        yieldResponse.data;
 
 
       // --------------------------------
-      // Send results to Recommendation AI
+      // Prepare Recommendation AI input
       // --------------------------------
 
       const recommendationInput = {
+
+        // AI crop recommendation
         recommended_crop:
           cropResult.recommended_crop,
 
+        // AI crop confidence
         crop_confidence:
           cropResult.confidence,
 
+        // User selected crop
+        // Used for crop-disease consistency check
+        selected_crop:
+          req.body.crop_name,
+
+        // Disease prediction
         predicted_disease:
           diseaseResult.predicted_disease,
 
+        // Disease confidence
         disease_confidence:
           diseaseResult.confidence,
 
+        // Yield prediction
         predicted_yield:
           yieldResult.predicted_yield,
       };
 
+
+      // --------------------------------
+      // Run Recommendation Engine
+      // --------------------------------
 
       const recommendationResponse =
         await axios.post(
@@ -293,32 +373,42 @@ app.post(
 
 
       // --------------------------------
-      // Final response
+      // Final integrated response
       // --------------------------------
 
       res.json({
-        crop: cropResult,
 
-        disease: diseaseResult,
+        crop:
+          cropResult,
 
-        yield: yieldResult,
+        disease:
+          diseaseResult,
+
+        yield:
+          yieldResult,
 
         recommendation:
           recommendationResponse.data,
+
       });
 
     } catch (error) {
 
       console.error(
         "Integrated AI workflow error:",
-        error.response?.data || error.message
+        error.response?.data ||
+        error.message
       );
 
       res.status(500).json({
+
         message:
           "Failed to complete integrated AI analysis",
+
       });
+
     }
+
   }
 );
 
@@ -328,7 +418,9 @@ app.post(
 // ===============================
 
 app.listen(PORT, () => {
+
   console.log(
     `Backend server running on http://localhost:${PORT}`
   );
+
 });
