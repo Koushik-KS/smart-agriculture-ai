@@ -1,5 +1,3 @@
-import os
-import numpy as np
 import pandas as pd
 import joblib
 
@@ -7,149 +5,103 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.pipeline import Pipeline
 
 
 # =========================
-# 1. Paths
+# 1. Load dataset
 # =========================
 
-DATASET_PATH = (
-    "ai-service/yield-prediction/"
-    "dataset/Crop_Wise_Area_Production_Yield/"
-    "crop-wise-area-production-yield.csv"
+DATA_PATH = "../dataset/Crop_Wise_Area_Production_Yield/crop-wise-area-production-yield.csv"
+
+df = pd.read_csv(DATA_PATH)
+
+print("Dataset shape:", df.shape)
+
+
+# =========================
+# 2. Prepare year
+# =========================
+
+df["year_start"] = df["year"].str[:4].astype(int)
+
+
+# =========================
+# 3. Create previous-year yield
+# =========================
+
+keys = [
+    "state_name",
+    "district_name",
+    "crop_name",
+    "season"
+]
+
+df = df.sort_values(keys + ["year_start"])
+
+df["previous_yield"] = (
+    df.groupby(keys)["yield"].shift(1)
 )
 
-MODEL_DIR = "ai-service/yield-prediction/model"
 
-MODEL_PATH = os.path.join(
-    MODEL_DIR,
-    "yield_prediction_model.pkl"
+# Make sure it is actually the previous
+# consecutive agricultural year
+previous_year = (
+    df.groupby(keys)["year_start"].shift(1)
 )
 
-
-# =========================
-# 2. Load dataset
-# =========================
-
-print("Loading dataset...")
-
-df = pd.read_csv(DATASET_PATH)
-
-print(f"Dataset shape: {df.shape}")
+df.loc[
+    df["year_start"] - previous_year != 1,
+    "previous_yield"
+] = None
 
 
 # =========================
-# 3. Select features
+# 4. Select required columns
 # =========================
 
 features = [
-    "year",
+    "year_start",
     "state_name",
     "district_name",
     "crop_name",
     "crop_type",
     "season",
-    "area"
+    "area",
+    "previous_yield"
 ]
 
 target = "yield"
 
-df = df[features + [target]].copy()
+df = df[features + [target]]
 
-
-# =========================
-# 4. Convert year
-# =========================
-
-df["year_start"] = (
-    df["year"]
-    .str[:4]
-    .astype(int)
-)
-
-
-# =========================
-# 5. Clean data
-# =========================
-
-df = df.dropna(
-    subset=[
-        "year_start",
-        "state_name",
-        "district_name",
-        "crop_name",
-        "crop_type",
-        "season",
-        "area",
-        "yield"
-    ]
-)
+df = df.dropna()
 
 df = df[df["area"] > 0]
-
+df = df[df["previous_yield"] >= 0]
 df = df[df["yield"] >= 0]
 
-
-# =========================
-# 6. Remove original year
-# =========================
-
-df.drop(
-    columns=["year"],
-    inplace=True
-)
+print("Clean dataset shape:", df.shape)
 
 
 # =========================
-# 7. Time-based split
+# 5. Time-based train/test split
 # =========================
 
-train_df = df[
-    df["year_start"] <= 2019
-]
+train = df[df["year_start"] <= 2019]
+test = df[df["year_start"] >= 2020]
 
-test_df = df[
-    df["year_start"] >= 2020
-]
+X_train = train[features]
+y_train = train[target]
 
-print(
-    f"Training records: {len(train_df)}"
-)
+X_test = test[features]
+y_test = test[target]
 
-print(
-    f"Testing records : {len(test_df)}"
-)
+print("Training records:", len(X_train))
+print("Testing records:", len(X_test))
 
 
 # =========================
-# 8. Separate X and y
-# =========================
-
-X_train = train_df.drop(
-    columns=[target]
-)
-
-y_train = train_df[target]
-
-X_test = test_df.drop(
-    columns=[target]
-)
-
-y_test = test_df[target]
-
-
-# =========================
-# 9. Log-transform target
-# =========================
-
-print("Applying log transformation to yield...")
-
-y_train_log = np.log1p(y_train)
-
-
-# =========================
-# 10. Feature types
+# 6. Preprocessing
 # =========================
 
 categorical_features = [
@@ -162,26 +114,21 @@ categorical_features = [
 
 numeric_features = [
     "year_start",
-    "area"
+    "area",
+    "previous_yield"
 ]
-
-
-# =========================
-# 11. Preprocessing
-# =========================
 
 preprocessor = ColumnTransformer(
     transformers=[
         (
-            "categorical",
+            "cat",
             OneHotEncoder(
-                handle_unknown="ignore",
-                sparse_output=True
+                handle_unknown="ignore"
             ),
             categorical_features
         ),
         (
-            "numeric",
+            "num",
             "passthrough",
             numeric_features
         )
@@ -190,7 +137,20 @@ preprocessor = ColumnTransformer(
 
 
 # =========================
-# 12. Random Forest
+# 7. Transform data
+# =========================
+
+X_train_processed = preprocessor.fit_transform(X_train)
+X_test_processed = preprocessor.transform(X_test)
+
+print(
+    "Processed training shape:",
+    X_train_processed.shape
+)
+
+
+# =========================
+# 8. Train Random Forest
 # =========================
 
 model = RandomForestRegressor(
@@ -201,66 +161,19 @@ model = RandomForestRegressor(
     min_samples_leaf=2
 )
 
+print("\nTraining model...")
 
-# =========================
-# 13. Pipeline
-# =========================
-
-pipeline = Pipeline(
-    steps=[
-        (
-            "preprocessor",
-            preprocessor
-        ),
-        (
-            "model",
-            model
-        )
-    ]
+model.fit(
+    X_train_processed,
+    y_train
 )
 
 
 # =========================
-# 14. Train
+# 9. Evaluate
 # =========================
 
-print("Training Random Forest...")
-
-pipeline.fit(
-    X_train,
-    y_train_log
-)
-
-print("Training completed.")
-
-
-# =========================
-# 15. Predict
-# =========================
-
-print("Making predictions...")
-
-predictions_log = pipeline.predict(
-    X_test
-)
-
-
-# Convert predictions back
-# to original yield scale
-
-predictions = np.expm1(
-    predictions_log
-)
-
-predictions = np.maximum(
-    predictions,
-    0
-)
-
-
-# =========================
-# 16. Evaluation
-# =========================
+predictions = model.predict(X_test_processed)
 
 mae = mean_absolute_error(
     y_test,
@@ -278,39 +191,27 @@ r2 = r2_score(
 )
 
 
-# =========================
-# 17. Display results
-# =========================
+print("\n===== Yield Prediction Results =====")
 
-print("\n===== LOG-TRANSFORMED MODEL RESULTS =====")
-
-print(
-    f"MAE  : {mae:.4f}"
-)
-
-print(
-    f"RMSE : {rmse:.4f}"
-)
-
-print(
-    f"R²   : {r2:.4f}"
-)
+print(f"MAE  : {mae:.4f}")
+print(f"RMSE : {rmse:.4f}")
+print(f"R²   : {r2:.4f}")
 
 
 # =========================
-# 18. Save model
+# 10. Save model + preprocessor
 # =========================
 
-os.makedirs(
-    MODEL_DIR,
-    exist_ok=True
-)
+MODEL_PATH = "../model/yield_prediction_model.pkl"
 
 joblib.dump(
-    pipeline,
+    {
+        "model": model,
+        "preprocessor": preprocessor,
+        "features": features
+    },
     MODEL_PATH
 )
 
-print(
-    f"\nModel saved to: {MODEL_PATH}"
-)
+print("\nModel saved successfully:")
+print(MODEL_PATH)
