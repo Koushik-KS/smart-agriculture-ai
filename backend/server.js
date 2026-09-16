@@ -11,6 +11,7 @@ const PORT = 5000;
 const CROP_AI_URL = "http://127.0.0.1:8000";
 const DISEASE_AI_URL = "http://127.0.0.1:8001";
 const YIELD_AI_URL = "http://127.0.0.1:8002";
+const RECOMMENDATION_AI_URL = "http://127.0.0.1:8003";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -127,6 +128,199 @@ app.post("/api/yield-prediction", async (req, res) => {
     });
   }
 });
+
+
+// ===============================
+// Recommendation Engine
+// ===============================
+
+app.post("/api/recommendation", async (req, res) => {
+  try {
+    const response = await axios.post(
+      `${RECOMMENDATION_AI_URL}/recommend`,
+      req.body
+    );
+
+    res.json(response.data);
+  } catch (error) {
+    console.error(
+      "Recommendation AI service error:",
+      error.response?.data || error.message
+    );
+
+    res.status(500).json({
+      message: "Failed to generate agricultural recommendation",
+    });
+  }
+});
+
+
+// ===============================
+// Integrated AI Workflow
+// ===============================
+
+app.post(
+  "/api/ai-analysis",
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      // --------------------------------
+      // Validate leaf image
+      // --------------------------------
+
+      if (!req.file) {
+        return res.status(400).json({
+          message: "Please upload a plant leaf image.",
+        });
+      }
+
+
+      // --------------------------------
+      // Prepare crop input
+      // --------------------------------
+
+      const cropInput = {
+        N: Number(req.body.N),
+        P: Number(req.body.P),
+        K: Number(req.body.K),
+        temperature: Number(req.body.temperature),
+        humidity: Number(req.body.humidity),
+        ph: Number(req.body.ph),
+        rainfall: Number(req.body.rainfall),
+      };
+
+
+      // --------------------------------
+      // Prepare yield input
+      // --------------------------------
+
+      const yieldInput = {
+        year_start: Number(req.body.year_start),
+        state_name: req.body.state_name,
+        district_name: req.body.district_name,
+        crop_name: req.body.crop_name,
+        crop_type: req.body.crop_type,
+        season: req.body.season,
+        area: Number(req.body.area),
+        previous_yield: Number(req.body.previous_yield),
+      };
+
+
+      // --------------------------------
+      // Prepare disease request
+      // --------------------------------
+
+      const diseaseFormData = new FormData();
+
+      diseaseFormData.append(
+        "file",
+        req.file.buffer,
+        {
+          filename: req.file.originalname,
+          contentType: req.file.mimetype,
+        }
+      );
+
+
+      // --------------------------------
+      // Run three AI models
+      // --------------------------------
+
+      const [
+        cropResponse,
+        diseaseResponse,
+        yieldResponse,
+      ] = await Promise.all([
+        axios.post(
+          `${CROP_AI_URL}/predict`,
+          cropInput
+        ),
+
+        axios.post(
+          `${DISEASE_AI_URL}/predict`,
+          diseaseFormData,
+          {
+            headers: {
+              ...diseaseFormData.getHeaders(),
+            },
+            maxBodyLength: Infinity,
+          }
+        ),
+
+        axios.post(
+          `${YIELD_AI_URL}/predict`,
+          yieldInput
+        ),
+      ]);
+
+
+      // --------------------------------
+      // Extract AI results
+      // --------------------------------
+
+      const cropResult = cropResponse.data;
+      const diseaseResult = diseaseResponse.data;
+      const yieldResult = yieldResponse.data;
+
+
+      // --------------------------------
+      // Send results to Recommendation AI
+      // --------------------------------
+
+      const recommendationInput = {
+        recommended_crop:
+          cropResult.recommended_crop,
+
+        crop_confidence:
+          cropResult.confidence,
+
+        predicted_disease:
+          diseaseResult.predicted_disease,
+
+        disease_confidence:
+          diseaseResult.confidence,
+
+        predicted_yield:
+          yieldResult.predicted_yield,
+      };
+
+
+      const recommendationResponse =
+        await axios.post(
+          `${RECOMMENDATION_AI_URL}/recommend`,
+          recommendationInput
+        );
+
+
+      // --------------------------------
+      // Final response
+      // --------------------------------
+
+      res.json({
+        crop: cropResult,
+
+        disease: diseaseResult,
+
+        yield: yieldResult,
+
+        recommendation:
+          recommendationResponse.data,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "Integrated AI workflow error:",
+        error.response?.data || error.message
+      );
+
+      res.status(500).json({
+        message:
+          "Failed to complete integrated AI analysis",
+      });
+    }
+  }
+);
 
 
 // ===============================
