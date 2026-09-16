@@ -12,3 +12,6 @@ venv/
 .env
 .env.*
 !.env.example
+
+# AI model files
+*.pkl
