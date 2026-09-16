@@ -4,30 +4,41 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 
 # =========================
-# 1. Paths
+# 1. Load dataset
 # =========================
 
-DATASET_PATH = (
-    "ai-service/yield-prediction/"
-    "dataset/Crop_Wise_Area_Production_Yield/"
-    "crop-wise-area-production-yield.csv"
+DATA_PATH = "../dataset/Crop_Wise_Area_Production_Yield/crop-wise-area-production-yield.csv"
+
+df = pd.read_csv(DATA_PATH)
+
+df["year_start"] = df["year"].str[:4].astype(int)
+
+
+# =========================
+# 2. Create previous-year yield
+# =========================
+
+keys = [
+    "state_name",
+    "district_name",
+    "crop_name",
+    "season"
+]
+
+df = df.sort_values(keys + ["year_start"])
+
+df["previous_yield"] = (
+    df.groupby(keys)["yield"].shift(1)
 )
 
-MODEL_PATH = (
-    "ai-service/yield-prediction/"
-    "model/yield_prediction_model.pkl"
+previous_year = (
+    df.groupby(keys)["year_start"].shift(1)
 )
 
-
-# =========================
-# 2. Load dataset
-# =========================
-
-print("Loading dataset...")
-
-df = pd.read_csv(DATASET_PATH)
-
-print(f"Dataset shape: {df.shape}")
+df.loc[
+    df["year_start"] - previous_year != 1,
+    "previous_yield"
+] = None
 
 
 # =========================
@@ -35,95 +46,63 @@ print(f"Dataset shape: {df.shape}")
 # =========================
 
 features = [
-    "year",
+    "year_start",
     "state_name",
     "district_name",
     "crop_name",
     "crop_type",
     "season",
-    "area"
+    "area",
+    "previous_yield"
 ]
 
-target = "yield"
+df = df[features + ["yield"]]
 
-df = df[features + [target]].copy()
-
-
-# =========================
-# 4. Convert year
-# =========================
-
-df["year_start"] = (
-    df["year"]
-    .str[:4]
-    .astype(int)
-)
-
-
-# =========================
-# 5. Clean data
-# =========================
-
-df = df.dropna(
-    subset=[
-        "year_start",
-        "state_name",
-        "district_name",
-        "crop_name",
-        "crop_type",
-        "season",
-        "area",
-        "yield"
-    ]
-)
+df = df.dropna()
 
 df = df[df["area"] > 0]
+df = df[df["previous_yield"] >= 0]
 df = df[df["yield"] >= 0]
 
-df.drop(
-    columns=["year"],
-    inplace=True
-)
+
+# =========================
+# 4. Test data
+# =========================
+
+test = df[df["year_start"] >= 2020]
+
+X_test = test[features]
+y_test = test["yield"]
 
 
 # =========================
-# 6. Select test data
+# 5. Load saved model
 # =========================
 
-test_df = df[
-    df["year_start"] >= 2020
-].copy()
+MODEL_PATH = "../model/yield_prediction_model.pkl"
 
+saved = joblib.load(MODEL_PATH)
 
-X_test = test_df.drop(
-    columns=[target]
-)
-
-y_test = test_df[target]
+model = saved["model"]
+preprocessor = saved["preprocessor"]
 
 
 # =========================
-# 7. Load trained model
+# 6. Transform test data
 # =========================
 
-print("Loading trained model...")
-
-model = joblib.load(MODEL_PATH)
-
-print("Model loaded successfully.")
+X_test_processed = preprocessor.transform(X_test)
 
 
 # =========================
-# 8. Predict
+# 7. Predict
 # =========================
 
-print("Making predictions...")
-
-predictions = model.predict(X_test)
+predictions = model.predict(X_test_processed)
 
 
 # =========================
-# 9. Evaluation
+# 8. Evaluation
 # =========================
 
 mae = mean_absolute_error(
@@ -142,26 +121,20 @@ r2 = r2_score(
 )
 
 
-print("\n===== TEST RESULTS =====")
+print("\n===== Saved Model Test =====")
 
-print(
-    f"MAE  : {mae:.4f}"
-)
+print(f"Test records: {len(X_test)}")
 
-print(
-    f"RMSE : {rmse:.4f}"
-)
-
-print(
-    f"R²   : {r2:.4f}"
-)
+print(f"MAE  : {mae:.4f}")
+print(f"RMSE : {rmse:.4f}")
+print(f"R²   : {r2:.4f}")
 
 
 # =========================
-# 10. Show sample predictions
+# 9. Sample predictions
 # =========================
 
-results = test_df[
+results = test[
     [
         "year_start",
         "state_name",
@@ -169,54 +142,15 @@ results = test_df[
         "crop_name",
         "season",
         "area",
+        "previous_yield",
         "yield"
     ]
 ].copy()
 
 results["predicted_yield"] = predictions
 
-results["error"] = (
-    results["yield"]
-    - results["predicted_yield"]
-).abs()
-
-
-print("\n===== SAMPLE PREDICTIONS =====")
+print("\n===== Sample Predictions =====")
 
 print(
-    results.head(10).to_string(
-        index=False
-    )
-)
-
-
-# =========================
-# 11. Best predictions
-# =========================
-
-print("\n===== LOWEST ERRORS =====")
-
-print(
-    results.nsmallest(
-        5,
-        "error"
-    ).to_string(
-        index=False
-    )
-)
-
-
-# =========================
-# 12. Highest errors
-# =========================
-
-print("\n===== HIGHEST ERRORS =====")
-
-print(
-    results.nlargest(
-        5,
-        "error"
-    ).to_string(
-        index=False
-    )
+    results.head(10).to_string(index=False)
 )

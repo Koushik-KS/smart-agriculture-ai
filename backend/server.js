@@ -10,6 +10,7 @@ const PORT = 5000;
 
 const CROP_AI_URL = "http://127.0.0.1:8000";
 const DISEASE_AI_URL = "http://127.0.0.1:8001";
+const YIELD_AI_URL = "http://127.0.0.1:8002";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -43,7 +44,10 @@ app.post("/api/crop-recommendation", async (req, res) => {
 
     res.json(response.data);
   } catch (error) {
-    console.error("Crop AI service error:", error.message);
+    console.error(
+      "Crop AI service error:",
+      error.response?.data || error.message
+    );
 
     res.status(500).json({
       message: "Failed to get crop recommendation",
@@ -99,6 +103,35 @@ app.post(
   }
 );
 
+
+// ===============================
+// Yield Prediction
+// ===============================
+
+app.post("/api/yield-prediction", async (req, res) => {
+  try {
+    const response = await axios.post(
+      `${YIELD_AI_URL}/predict`,
+      req.body
+    );
+
+    res.json(response.data);
+  } catch (error) {
+    console.error(
+      "Yield AI service error:",
+      error.response?.data || error.message
+    );
+
+    res.status(500).json({
+      message: "Failed to predict crop yield",
+    });
+  }
+});
+
+
+// ===============================
+// Start Server
+// ===============================
 
 app.listen(PORT, () => {
   console.log(
