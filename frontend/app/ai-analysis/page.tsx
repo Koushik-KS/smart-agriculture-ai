@@ -32,6 +32,14 @@ type AnalysisResult = {
     alerts: string[];
     recommendations: string[];
   };
+
+  yield_metadata?: {
+    current_year: number;
+    previous_year: number;
+    previous_year_label: string;
+    previous_yield: number;
+    source: string;
+  };
 };
 
 type WeatherData = {
@@ -44,6 +52,14 @@ type WeatherData = {
   precipitation_unit: string;
 };
 
+type PreviousYieldData = {
+  previous_year: number;
+  previous_year_label: string;
+  previous_yield: number;
+  yield_unit: string;
+  source: string;
+};
+
 export default function AIAnalysisPage() {
   const [form, setForm] = useState({
     N: "90",
@@ -53,12 +69,9 @@ export default function AIAnalysisPage() {
     temperature: "25",
     humidity: "80",
     ph: "6.5",
-
-    // IMPORTANT:
-    // This remains separate from live weather precipitation.
     rainfall: "200",
 
-    year_start: "2024",
+    year_start: "2020",
 
     state_name: "Karnataka",
     district_name: "Haveri",
@@ -68,7 +81,6 @@ export default function AIAnalysisPage() {
     season: "Kharif",
 
     area: "100",
-    previous_yield: "2.1",
   });
 
   const [weather, setWeather] =
@@ -78,6 +90,15 @@ export default function AIAnalysisPage() {
     useState(false);
 
   const [weatherError, setWeatherError] =
+    useState("");
+
+  const [previousYield, setPreviousYield] =
+    useState<PreviousYieldData | null>(null);
+
+  const [previousYieldLoading, setPreviousYieldLoading] =
+    useState(false);
+
+  const [previousYieldError, setPreviousYieldError] =
     useState("");
 
   const [file, setFile] =
@@ -92,6 +113,7 @@ export default function AIAnalysisPage() {
   const [error, setError] =
     useState("");
 
+
   // ==========================================
   // LOCATION DATA
   // ==========================================
@@ -104,6 +126,7 @@ export default function AIAnalysisPage() {
 
   const districts =
     selectedState?.districts || [];
+
 
   // ==========================================
   // FETCH WEATHER
@@ -131,9 +154,7 @@ export default function AIAnalysisPage() {
       setWeatherError("");
 
       try {
-        // ======================================
         // STEP 1: GEOCODING
-        // ======================================
 
         const geocodeResponse =
           await fetch(
@@ -154,9 +175,8 @@ export default function AIAnalysisPage() {
           );
         }
 
-        // ======================================
+
         // STEP 2: WEATHER
-        // ======================================
 
         const weatherResponse =
           await fetch(
@@ -177,25 +197,13 @@ export default function AIAnalysisPage() {
           );
         }
 
-        // ======================================
+
         // STEP 3: STORE WEATHER
-        // ======================================
 
         setWeather(data);
 
-        // ======================================
-        // STEP 4: UPDATE ONLY CURRENT WEATHER
-        // ======================================
-        //
-        // Temperature and humidity come from
-        // live weather.
-        //
-        // rainfall is intentionally NOT replaced
-        // by current precipitation.
-        //
-        // The crop model's rainfall feature
-        // remains manually supplied.
-        //
+
+        // STEP 4: UPDATE CURRENT WEATHER
 
         setForm((previous) => ({
           ...previous,
@@ -209,10 +217,8 @@ export default function AIAnalysisPage() {
             data.humidity !== null
               ? String(data.humidity)
               : previous.humidity,
-
-          rainfall:
-            previous.rainfall,
         }));
+
       } catch (err) {
         setWeather(null);
 
@@ -231,6 +237,92 @@ export default function AIAnalysisPage() {
     ]
   );
 
+
+  // ==========================================
+  // FETCH PREVIOUS YEAR YIELD
+  // ==========================================
+
+  const fetchPreviousYield =
+    useCallback(
+      async () => {
+        const {
+          year_start,
+          state_name,
+          district_name,
+          crop_name,
+          season,
+        } = form;
+
+        if (
+          !year_start ||
+          !state_name ||
+          !district_name ||
+          !crop_name ||
+          !season
+        ) {
+          setPreviousYield(null);
+
+          setPreviousYieldError(
+            "Complete year, location, crop and season information."
+          );
+
+          return;
+        }
+
+        setPreviousYieldLoading(true);
+        setPreviousYieldError("");
+
+        try {
+          const query =
+            new URLSearchParams({
+              year_start,
+              state_name,
+              district_name,
+              crop_name,
+              season,
+            });
+
+          const response =
+            await fetch(
+              `http://localhost:5000/api/previous-yield?${query.toString()}`
+            );
+
+          const data =
+            await response.json();
+
+          if (!response.ok) {
+            setPreviousYield(null);
+
+            throw new Error(
+              data.message ||
+                "Previous year yield not found."
+            );
+          }
+
+          setPreviousYield(data);
+
+        } catch (err) {
+          setPreviousYield(null);
+
+          setPreviousYieldError(
+            err instanceof Error
+              ? err.message
+              : "Previous year yield not found."
+          );
+        } finally {
+          setPreviousYieldLoading(false);
+        }
+      },
+      [
+        form.year_start,
+        form.state_name,
+        form.district_name,
+        form.crop_name,
+        form.season,
+      ]
+    );
+
+
   // ==========================================
   // FETCH WEATHER WHEN LOCATION CHANGES
   // ==========================================
@@ -238,6 +330,16 @@ export default function AIAnalysisPage() {
   useEffect(() => {
     fetchWeather();
   }, [fetchWeather]);
+
+
+  // ==========================================
+  // FETCH PREVIOUS YIELD WHEN INPUTS CHANGE
+  // ==========================================
+
+  useEffect(() => {
+    fetchPreviousYield();
+  }, [fetchPreviousYield]);
+
 
   // ==========================================
   // FORM CHANGE
@@ -253,9 +355,8 @@ export default function AIAnalysisPage() {
       value,
     } = e.target;
 
-    // ========================================
+
     // STATE CHANGE
-    // ========================================
 
     if (name === "state_name") {
       const newState =
@@ -267,10 +368,14 @@ export default function AIAnalysisPage() {
       setWeather(null);
       setWeatherError("");
 
+      setPreviousYield(null);
+      setPreviousYieldError("");
+
       setForm((previous) => ({
         ...previous,
 
-        state_name: value,
+        state_name:
+          value,
 
         district_name:
           newState?.districts[0] || "",
@@ -279,15 +384,15 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // ========================================
+
     // NORMAL FIELD CHANGE
-    // ========================================
 
     setForm((previous) => ({
       ...previous,
       [name]: value,
     }));
   };
+
 
   // ==========================================
   // FILE CHANGE
@@ -304,6 +409,7 @@ export default function AIAnalysisPage() {
       setError("");
     }
   };
+
 
   // ==========================================
   // SUBMIT AI ANALYSIS
@@ -322,6 +428,14 @@ export default function AIAnalysisPage() {
       return;
     }
 
+    if (!previousYield) {
+      setError(
+        "Previous year yield could not be retrieved for the selected year, location, crop and season."
+      );
+
+      return;
+    }
+
     setLoading(true);
     setError("");
     setResult(null);
@@ -329,6 +443,7 @@ export default function AIAnalysisPage() {
     try {
       const formData =
         new FormData();
+
 
       Object.entries(form).forEach(
         ([key, value]) => {
@@ -339,10 +454,22 @@ export default function AIAnalysisPage() {
         }
       );
 
+
+      // Automatically retrieved previous yield
+
+      formData.append(
+        "previous_yield",
+        String(
+          previousYield.previous_yield
+        )
+      );
+
+
       formData.append(
         "file",
         file
       );
+
 
       const response =
         await fetch(
@@ -353,8 +480,10 @@ export default function AIAnalysisPage() {
           }
         );
 
+
       const data =
         await response.json();
+
 
       if (!response.ok) {
         throw new Error(
@@ -363,7 +492,9 @@ export default function AIAnalysisPage() {
         );
       }
 
+
       setResult(data);
+
     } catch (err) {
       setError(
         err instanceof Error
@@ -374,6 +505,7 @@ export default function AIAnalysisPage() {
       setLoading(false);
     }
   };
+
 
   // ==========================================
   // FORMAT DISEASE NAME
@@ -392,6 +524,7 @@ export default function AIAnalysisPage() {
         " "
       );
   };
+
 
   // ==========================================
   // FORMAT STATUS
@@ -412,6 +545,7 @@ export default function AIAnalysisPage() {
       );
   };
 
+
   // ==========================================
   // UI
   // ==========================================
@@ -427,7 +561,9 @@ export default function AIAnalysisPage() {
 
           <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">
 
-            <span>🌱</span>
+            <span>
+              🌱
+            </span>
 
             <span>
               AI-Powered Agriculture
@@ -435,9 +571,11 @@ export default function AIAnalysisPage() {
 
           </div>
 
+
           <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
             Smart Agriculture AI
           </h1>
+
 
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-gray-600 sm:text-lg">
             Analyze soil conditions, plant health
@@ -481,6 +619,7 @@ export default function AIAnalysisPage() {
               description="Soil values are entered manually. Temperature and humidity are automatically retrieved using the selected state and district."
             />
 
+
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
 
               <InputField
@@ -491,6 +630,7 @@ export default function AIAnalysisPage() {
                 type="number"
               />
 
+
               <InputField
                 label="Phosphorus (P)"
                 name="P"
@@ -498,6 +638,7 @@ export default function AIAnalysisPage() {
                 onChange={handleChange}
                 type="number"
               />
+
 
               <InputField
                 label="Potassium (K)"
@@ -507,6 +648,7 @@ export default function AIAnalysisPage() {
                 type="number"
               />
 
+
               <WeatherInput
                 label="Temperature (°C)"
                 name="temperature"
@@ -514,6 +656,7 @@ export default function AIAnalysisPage() {
                 onChange={handleChange}
                 loading={weatherLoading}
               />
+
 
               <WeatherInput
                 label="Humidity (%)"
@@ -523,6 +666,7 @@ export default function AIAnalysisPage() {
                 loading={weatherLoading}
               />
 
+
               <InputField
                 label="Soil pH"
                 name="ph"
@@ -531,6 +675,7 @@ export default function AIAnalysisPage() {
                 type="number"
                 step="0.1"
               />
+
 
               <InputField
                 label="Rainfall (mm)"
@@ -557,11 +702,13 @@ export default function AIAnalysisPage() {
                       🌤️ Weather data loaded automatically
                     </p>
 
+
                     <p className="mt-1 text-xs text-gray-500">
                       Location:{" "}
                       {form.district_name},{" "}
                       {form.state_name}
                     </p>
+
 
                     {weather.recent_precipitation !==
                       null && (
@@ -574,6 +721,7 @@ export default function AIAnalysisPage() {
 
                   </div>
                 )}
+
 
                 {weatherError && (
                   <p className="text-sm font-medium text-red-600">
@@ -608,6 +756,7 @@ export default function AIAnalysisPage() {
                 description="Select the agricultural location and provide crop details."
               />
 
+
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
 
                 <InputField
@@ -617,6 +766,7 @@ export default function AIAnalysisPage() {
                   onChange={handleChange}
                   type="number"
                 />
+
 
                 <SelectField
                   label="State"
@@ -629,6 +779,7 @@ export default function AIAnalysisPage() {
                   )}
                 />
 
+
                 <SelectField
                   label="District"
                   name="district_name"
@@ -637,6 +788,7 @@ export default function AIAnalysisPage() {
                   options={districts}
                 />
 
+
                 <InputField
                   label="Crop"
                   name="crop_name"
@@ -644,12 +796,14 @@ export default function AIAnalysisPage() {
                   onChange={handleChange}
                 />
 
+
                 <InputField
                   label="Crop Type"
                   name="crop_type"
                   value={form.crop_type}
                   onChange={handleChange}
                 />
+
 
                 <InputField
                   label="Season"
@@ -670,8 +824,9 @@ export default function AIAnalysisPage() {
               <SectionHeader
                 icon="📊"
                 title="Yield Information"
-                description="Historical information used by the yield prediction model."
+                description="Previous-year yield is automatically retrieved from the historical agricultural dataset."
               />
+
 
               <div className="grid gap-5 sm:grid-cols-2">
 
@@ -684,14 +839,63 @@ export default function AIAnalysisPage() {
                   step="0.01"
                 />
 
-                <InputField
-                  label="Previous Yield (Tonnes/Ha)"
-                  name="previous_yield"
-                  value={form.previous_yield}
-                  onChange={handleChange}
-                  type="number"
-                  step="0.01"
-                />
+
+                {/* AUTOMATIC PREVIOUS YIELD */}
+
+                <div>
+
+                  <div className="mb-2 flex items-center justify-between">
+
+                    <label className="text-sm font-semibold text-gray-700">
+                      Previous Yield (Tonnes/Ha)
+                    </label>
+
+
+                    <span className="text-xs font-semibold text-green-600">
+                      {previousYieldLoading
+                        ? "Retrieving..."
+                        : "Auto"}
+                    </span>
+
+                  </div>
+
+
+                  <div className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+
+                    {previousYieldLoading ? (
+                      <span className="text-gray-500">
+                        Retrieving historical yield...
+                      </span>
+                    ) : previousYield ? (
+                      <div>
+
+                        <p className="font-semibold text-gray-900">
+                          {previousYield.previous_yield}{" "}
+                          {previousYield.yield_unit}
+                        </p>
+
+                        <p className="mt-1 text-xs text-gray-500">
+                          Historical year:{" "}
+                          {previousYield.previous_year_label}
+                        </p>
+
+                      </div>
+                    ) : (
+                      <span className="text-red-600">
+                        Previous yield not available
+                      </span>
+                    )}
+
+                  </div>
+
+
+                  {previousYieldError && (
+                    <p className="mt-2 text-xs text-red-600">
+                      ⚠️ {previousYieldError}
+                    </p>
+                  )}
+
+                </div>
 
               </div>
 
@@ -708,6 +912,7 @@ export default function AIAnalysisPage() {
                 description="Upload a clear image of the plant leaf."
               />
 
+
               <label
                 htmlFor="plant-image"
                 className="group flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-green-300 bg-green-50/50 px-6 py-10 text-center transition hover:border-green-500 hover:bg-green-50"
@@ -717,19 +922,23 @@ export default function AIAnalysisPage() {
                   📷
                 </div>
 
+
                 <p className="text-lg font-semibold text-gray-800">
                   {file
                     ? "Change plant image"
                     : "Upload plant leaf image"}
                 </p>
 
+
                 <p className="mt-2 text-sm text-gray-500">
                   PNG, JPG or JPEG images are supported
                 </p>
 
+
                 <span className="mt-5 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white transition group-hover:bg-green-700">
                   Choose Image
                 </span>
+
 
                 <input
                   id="plant-image"
@@ -749,11 +958,13 @@ export default function AIAnalysisPage() {
                     🖼️
                   </div>
 
+
                   <div className="min-w-0">
 
                     <p className="text-sm font-semibold text-gray-800">
                       Selected image
                     </p>
+
 
                     <p className="truncate text-sm text-gray-500">
                       {file.name}
@@ -776,11 +987,13 @@ export default function AIAnalysisPage() {
                   ⚠️
                 </span>
 
+
                 <div>
 
                   <p className="font-semibold">
                     Analysis Error
                   </p>
+
 
                   <p className="mt-1 text-sm">
                     {error}
@@ -796,7 +1009,11 @@ export default function AIAnalysisPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={
+                loading ||
+                previousYieldLoading ||
+                !previousYield
+              }
               className="mt-8 flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4 text-base font-bold text-white shadow-lg transition hover:from-green-700 hover:to-emerald-700 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
             >
 
@@ -805,6 +1022,10 @@ export default function AIAnalysisPage() {
                   <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
 
                   Running AI Analysis...
+                </>
+              ) : previousYieldLoading ? (
+                <>
+                  Retrieving Historical Yield...
                 </>
               ) : (
                 <>
@@ -838,15 +1059,18 @@ export default function AIAnalysisPage() {
                   Analysis Complete
                 </p>
 
+
                 <h2 className="mt-1 text-3xl font-extrabold text-gray-900">
                   AI Analysis Results
                 </h2>
+
 
                 <p className="mt-1 text-gray-600">
                   Results generated from the integrated AI pipeline.
                 </p>
 
               </div>
+
 
               <div
                 className={`inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-bold ${
@@ -863,6 +1087,7 @@ export default function AIAnalysisPage() {
                     ? "⚠️"
                     : "✅"}
                 </span>
+
 
                 {formatStatus(
                   result.recommendation.overall_status
@@ -889,6 +1114,7 @@ export default function AIAnalysisPage() {
                 }
               />
 
+
               <ResultCard
                 icon="🦠"
                 title="Plant Disease"
@@ -901,6 +1127,7 @@ export default function AIAnalysisPage() {
                 }
               />
 
+
               <YieldResultCard
                 value={
                   result.yield.predicted_yield
@@ -911,6 +1138,43 @@ export default function AIAnalysisPage() {
               />
 
             </div>
+
+
+            {/* AUTOMATIC YIELD INFORMATION */}
+
+            {result.yield_metadata && (
+              <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
+
+                <div className="flex items-center gap-3">
+
+                  <span className="text-2xl">
+                    📊
+                  </span>
+
+
+                  <div>
+
+                    <h3 className="font-bold text-blue-900">
+                      Historical Yield Used
+                    </h3>
+
+
+                    <p className="mt-1 text-sm text-blue-800">
+                      Previous year (
+                      {result.yield_metadata.previous_year_label}
+                      ):{" "}
+                      <strong>
+                        {result.yield_metadata.previous_yield}
+                      </strong>{" "}
+                      Tonnes/Hectare
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+            )}
 
 
             {/* RECOMMENDATION PANEL */}
@@ -932,11 +1196,13 @@ export default function AIAnalysisPage() {
                     🤖
                   </div>
 
+
                   <div>
 
                     <h3 className="text-2xl font-bold text-gray-900">
                       AI Recommendation
                     </h3>
+
 
                     <p className="text-sm text-gray-600">
                       Combined interpretation of the AI outputs
@@ -958,6 +1224,7 @@ export default function AIAnalysisPage() {
                   <p className="text-sm font-medium text-gray-500">
                     Overall Status
                   </p>
+
 
                   <span
                     className={`mt-2 inline-flex rounded-full px-4 py-2 text-sm font-bold ${
@@ -991,11 +1258,13 @@ export default function AIAnalysisPage() {
                         ⚠️
                       </span>
 
+
                       <h4 className="text-lg font-bold text-red-700">
                         Alerts
                       </h4>
 
                     </div>
+
 
                     <ul className="mt-4 space-y-3">
 
@@ -1013,6 +1282,7 @@ export default function AIAnalysisPage() {
                             <span className="mt-1 text-red-500">
                               ●
                             </span>
+
 
                             <span>
                               {alert}
@@ -1043,11 +1313,13 @@ export default function AIAnalysisPage() {
                         💡
                       </span>
 
+
                       <h4 className="text-lg font-bold text-green-700">
                         Recommendations
                       </h4>
 
                     </div>
+
 
                     <ul className="mt-4 space-y-3">
 
@@ -1065,6 +1337,7 @@ export default function AIAnalysisPage() {
                             <span className="mt-1 text-green-600">
                               ✓
                             </span>
+
 
                             <span>
                               {recommendation}
@@ -1106,9 +1379,9 @@ export default function AIAnalysisPage() {
 }
 
 
-/* =========================================================
-   SECTION HEADER
-========================================================= */
+// =========================================================
+// SECTION HEADER
+// =========================================================
 
 function SectionHeader({
   icon,
@@ -1126,11 +1399,13 @@ function SectionHeader({
         {icon}
       </div>
 
+
       <div>
 
         <h3 className="text-lg font-bold text-gray-900">
           {title}
         </h3>
+
 
         <p className="mt-1 text-sm text-gray-500">
           {description}
@@ -1143,9 +1418,9 @@ function SectionHeader({
 }
 
 
-/* =========================================================
-   INPUT FIELD
-========================================================= */
+// =========================================================
+// INPUT FIELD
+// =========================================================
 
 function InputField({
   label,
@@ -1174,6 +1449,7 @@ function InputField({
         {label}
       </label>
 
+
       <input
         id={name}
         type={type}
@@ -1189,9 +1465,9 @@ function InputField({
 }
 
 
-/* =========================================================
-   SELECT FIELD
-========================================================= */
+// =========================================================
+// SELECT FIELD
+// =========================================================
 
 function SelectField({
   label,
@@ -1217,6 +1493,7 @@ function SelectField({
       >
         {label}
       </label>
+
 
       <select
         id={name}
@@ -1244,9 +1521,9 @@ function SelectField({
 }
 
 
-/* =========================================================
-   WEATHER INPUT
-========================================================= */
+// =========================================================
+// WEATHER INPUT
+// =========================================================
 
 function WeatherInput({
   label,
@@ -1275,6 +1552,7 @@ function WeatherInput({
           {label}
         </label>
 
+
         <span className="text-xs font-semibold text-green-600">
           {loading
             ? "Updating..."
@@ -1282,6 +1560,7 @@ function WeatherInput({
         </span>
 
       </div>
+
 
       <input
         id={name}
@@ -1298,9 +1577,9 @@ function WeatherInput({
 }
 
 
-/* =========================================================
-   RESULT CARD
-========================================================= */
+// =========================================================
+// RESULT CARD
+// =========================================================
 
 function ResultCard({
   icon,
@@ -1331,6 +1610,7 @@ function ResultCard({
           {icon}
         </div>
 
+
         <span
           className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${levelStyle}`}
         >
@@ -1339,13 +1619,16 @@ function ResultCard({
 
       </div>
 
+
       <p className="mt-5 text-sm font-semibold text-gray-500">
         {title}
       </p>
 
+
       <h3 className="mt-2 break-words text-2xl font-extrabold capitalize text-gray-900">
         {value}
       </h3>
+
 
       <p className="mt-3 text-sm text-gray-500">
         {details}
@@ -1356,9 +1639,9 @@ function ResultCard({
 }
 
 
-/* =========================================================
-   YIELD RESULT CARD
-========================================================= */
+// =========================================================
+// YIELD RESULT CARD
+// =========================================================
 
 function YieldResultCard({
   value,
@@ -1376,19 +1659,23 @@ function YieldResultCard({
           📊
         </div>
 
+
         <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase text-blue-700">
           Prediction
         </span>
 
       </div>
 
+
       <p className="mt-5 text-sm font-semibold text-gray-500">
         Yield Prediction
       </p>
 
+
       <h3 className="mt-2 text-3xl font-extrabold text-gray-900">
         {value}
       </h3>
+
 
       <p className="mt-3 text-sm text-gray-500">
         {unit}
