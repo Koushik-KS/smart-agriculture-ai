@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 app = FastAPI(
     title="Smart Agriculture AI",
     description="AI service for crop recommendation",
-    version="1.1.0"
+    version="1.2.0"
 )
 
 
@@ -19,6 +19,21 @@ app = FastAPI(
 model = joblib.load(
     "model/crop_recommendation_model.pkl"
 )
+
+
+# =========================================================
+# FEATURE NAMES
+# =========================================================
+
+FEATURE_NAMES = [
+    "N",
+    "P",
+    "K",
+    "temperature",
+    "humidity",
+    "ph",
+    "rainfall"
+]
 
 
 # =========================================================
@@ -93,7 +108,8 @@ def model_status():
     return {
         "model": "Random Forest",
         "status": "loaded",
-        "classes": len(model.classes_)
+        "classes": len(model.classes_),
+        "features": FEATURE_NAMES
     }
 
 
@@ -214,6 +230,42 @@ def predict_crop(data: CropInput):
 
 
     # -----------------------------------------------------
+    # Feature Importance
+    # -----------------------------------------------------
+
+    feature_importance = []
+
+    for feature, importance in zip(
+        FEATURE_NAMES,
+        model.feature_importances_
+    ):
+
+        feature_importance.append({
+
+            "feature":
+                feature,
+
+            "importance":
+                round(
+                    float(importance) * 100,
+                    2
+                )
+
+        })
+
+
+    # -----------------------------------------------------
+    # Sort feature importance
+    # Highest importance first
+    # -----------------------------------------------------
+
+    feature_importance.sort(
+        key=lambda x: x["importance"],
+        reverse=True
+    )
+
+
+    # -----------------------------------------------------
     # Final response
     # -----------------------------------------------------
 
@@ -232,6 +284,9 @@ def predict_crop(data: CropInput):
             message,
 
         "top_recommendations":
-            top_recommendations
+            top_recommendations,
+
+        "feature_importance":
+            feature_importance
 
     }

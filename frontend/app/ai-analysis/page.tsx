@@ -14,6 +14,11 @@ type TopCropRecommendation = {
   confidence: number;
 };
 
+type FeatureImportance = {
+  feature: string;
+  importance: number;
+};
+
 type AnalysisResult = {
   crop: {
     recommended_crop: string;
@@ -21,6 +26,7 @@ type AnalysisResult = {
     confidence_level: string;
     message: string;
     top_recommendations?: TopCropRecommendation[];
+    feature_importance?: FeatureImportance[];
   };
 
   disease: {
@@ -72,21 +78,16 @@ export default function AIAnalysisPage() {
     N: "90",
     P: "40",
     K: "40",
-
     temperature: "25",
     humidity: "80",
     ph: "6.5",
     rainfall: "200",
-
     year_start: "2020",
-
     state_name: "Karnataka",
     district_name: "Haveri",
-
     crop_name: "Rice",
     crop_type: "Cereals",
     season: "Kharif",
-
     area: "100",
   });
 
@@ -176,8 +177,6 @@ export default function AIAnalysisPage() {
       setWeatherError("");
 
       try {
-        // STEP 1: GEOCODING
-
         const geocodeResponse =
           await fetch(
             `http://localhost:5000/api/geocode?state=${encodeURIComponent(
@@ -196,8 +195,6 @@ export default function AIAnalysisPage() {
               "Location not found."
           );
         }
-
-        // STEP 2: WEATHER
 
         const weatherResponse =
           await fetch(
@@ -218,11 +215,7 @@ export default function AIAnalysisPage() {
           );
         }
 
-        // STEP 3: STORE WEATHER
-
         setWeather(data);
-
-        // STEP 4: UPDATE CURRENT WEATHER
 
         setForm((previous) => ({
           ...previous,
@@ -368,8 +361,6 @@ export default function AIAnalysisPage() {
       value,
     } = e.target;
 
-    // STATE CHANGE
-
     if (name === "state_name") {
       const newState =
         indiaLocations.find(
@@ -395,15 +386,10 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // NORMAL FIELD CHANGE
-
     setForm((previous) => ({
       ...previous,
       [name]: value,
     }));
-
-    // Clear old result when important
-    // agricultural inputs change.
 
     if (
       name === "N" ||
@@ -469,8 +455,6 @@ export default function AIAnalysisPage() {
 
     setError("");
 
-    // REQUIRED IMAGE
-
     if (!file) {
       setError(
         "Please upload a plant leaf image."
@@ -479,8 +463,6 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // PREVIOUS YEAR YIELD
-
     if (!previousYield) {
       setError(
         "Previous year yield could not be retrieved for the selected year, location, crop and season."
@@ -488,8 +470,6 @@ export default function AIAnalysisPage() {
 
       return;
     }
-
-    // NUMERIC VALIDATION
 
     const nitrogen =
       Number(form.N);
@@ -517,8 +497,6 @@ export default function AIAnalysisPage() {
 
     const area =
       Number(form.area);
-
-    // CROP MODEL RANGE VALIDATION
 
     if (
       !Number.isFinite(nitrogen) ||
@@ -580,8 +558,6 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // TEMPERATURE VALIDATION
-
     if (
       !Number.isFinite(temperature) ||
       temperature < 8.8 ||
@@ -593,8 +569,6 @@ export default function AIAnalysisPage() {
 
       return;
     }
-
-    // HUMIDITY VALIDATION
 
     if (
       !Number.isFinite(humidity) ||
@@ -608,8 +582,6 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // YEAR VALIDATION
-
     if (
       !Number.isInteger(year) ||
       year < 1997 ||
@@ -622,8 +594,6 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // AREA VALIDATION
-
     if (
       !Number.isFinite(area) ||
       area <= 0
@@ -634,8 +604,6 @@ export default function AIAnalysisPage() {
 
       return;
     }
-
-    // START ANALYSIS
 
     setLoading(true);
     setResult(null);
@@ -652,8 +620,6 @@ export default function AIAnalysisPage() {
           );
         }
       );
-
-      // Automatically retrieved previous yield
 
       formData.append(
         "previous_yield",
@@ -736,6 +702,32 @@ export default function AIAnalysisPage() {
   };
 
   // ==========================================
+  // FORMAT FEATURE NAME
+  // ==========================================
+
+  const formatFeatureName = (
+    feature: string
+  ) => {
+    const featureNames: Record<
+      string,
+      string
+    > = {
+      N: "Nitrogen (N)",
+      P: "Phosphorus (P)",
+      K: "Potassium (K)",
+      temperature: "Temperature",
+      humidity: "Humidity",
+      ph: "Soil pH",
+      rainfall: "Rainfall",
+    };
+
+    return (
+      featureNames[feature] ||
+      feature
+    );
+  };
+
+  // ==========================================
   // UI
   // ==========================================
 
@@ -776,8 +768,6 @@ export default function AIAnalysisPage() {
           onSubmit={handleSubmit}
           className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl"
         >
-
-          {/* FORM HEADER */}
 
           <div className="border-b border-gray-200 bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-6 text-white sm:px-8">
 
@@ -1017,8 +1007,6 @@ export default function AIAnalysisPage() {
                   step="0.01"
                   min="0.01"
                 />
-
-                {/* AUTOMATIC PREVIOUS YIELD */}
 
                 <div>
 
@@ -1459,6 +1447,116 @@ export default function AIAnalysisPage() {
                                 )}
 
                               </div>
+
+                            </div>
+
+                          </div>
+                        );
+                      }
+                    )}
+
+                  </div>
+
+                </div>
+
+              </div>
+            )}
+
+            {/* ========================================
+                AI FEATURE IMPORTANCE
+            ======================================== */}
+
+            {result.crop.feature_importance &&
+              result.crop.feature_importance.length >
+                0 && (
+              <div className="mt-6 overflow-hidden rounded-3xl border border-purple-200 bg-white shadow-lg">
+
+                <div className="border-b border-purple-100 bg-purple-50 px-6 py-5 sm:px-8">
+
+                  <div className="flex items-center gap-3">
+
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">
+                      🧠
+                    </div>
+
+                    <div>
+
+                      <h3 className="text-2xl font-bold text-gray-900">
+                        AI Factors
+                      </h3>
+
+                      <p className="text-sm text-gray-600">
+                        Feature importance from the trained Random Forest crop recommendation model.
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+                <div className="p-6 sm:p-8">
+
+                  <div className="mb-6 rounded-xl border border-purple-100 bg-purple-50/50 p-4">
+
+                    <p className="text-sm leading-6 text-gray-600">
+                      These percentages show the relative importance of each input feature to the trained Random Forest model. They explain which features the model relied on most across its decision trees.
+                    </p>
+
+                  </div>
+
+                  <div className="space-y-5">
+
+                    {result.crop.feature_importance.map(
+                      (
+                        item,
+                        index
+                      ) => {
+
+                        const percentage =
+                          Math.min(
+                            Math.max(
+                              item.importance,
+                              0
+                            ),
+                            100
+                          );
+
+                        return (
+                          <div
+                            key={item.feature}
+                          >
+
+                            <div className="mb-2 flex items-center justify-between gap-4">
+
+                              <div className="flex items-center gap-3">
+
+                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 text-xs font-bold text-purple-700">
+                                  {index + 1}
+                                </span>
+
+                                <span className="text-sm font-semibold text-gray-800">
+                                  {formatFeatureName(
+                                    item.feature
+                                  )}
+                                </span>
+
+                              </div>
+
+                              <span className="shrink-0 text-sm font-bold text-purple-700">
+                                {item.importance}%
+                              </span>
+
+                            </div>
+
+                            <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
+
+                              <div
+                                className="h-full rounded-full bg-purple-500 transition-all duration-700"
+                                style={{
+                                  width: `${percentage}%`,
+                                }}
+                              />
 
                             </div>
 
