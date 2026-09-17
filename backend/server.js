@@ -23,9 +23,9 @@ app.use(cors());
 app.use(express.json());
 
 
-// ===============================
-// Yield Dataset
-// ===============================
+// =========================================================
+// YIELD DATASET
+// =========================================================
 
 const YIELD_DATASET_PATH = path.join(
   __dirname,
@@ -47,9 +47,33 @@ function normalizeText(value) {
 }
 
 
-// ===============================
-// Load Yield Dataset
-// ===============================
+// =========================================================
+// NUMBER VALIDATION HELPER
+// =========================================================
+
+function validateNumber(
+  value,
+  fieldName,
+  min,
+  max
+) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return `${fieldName} must be a valid number.`;
+  }
+
+  if (number < min || number > max) {
+    return `${fieldName} must be between ${min} and ${max}.`;
+  }
+
+  return null;
+}
+
+
+// =========================================================
+// LOAD YIELD DATASET
+// =========================================================
 
 try {
   if (fs.existsSync(YIELD_DATASET_PATH)) {
@@ -60,7 +84,9 @@ try {
 
     const lines = csvText
       .split(/\r?\n/)
-      .filter((line) => line.trim() !== "");
+      .filter(
+        (line) => line.trim() !== ""
+      );
 
     const headers = lines[0].split(",");
 
@@ -71,10 +97,12 @@ try {
 
         const record = {};
 
-        headers.forEach((header, index) => {
-          record[header.trim()] =
-            values[index]?.trim() || "";
-        });
+        headers.forEach(
+          (header, index) => {
+            record[header.trim()] =
+              values[index]?.trim() || "";
+          }
+        );
 
         return record;
       });
@@ -96,205 +124,231 @@ try {
 }
 
 
-// ===============================
-// Health Check
-// ===============================
+// =========================================================
+// HEALTH CHECK
+// =========================================================
 
 app.get("/", (req, res) => {
   res.json({
-    message: "Smart Agriculture Backend is running",
+    message:
+      "Smart Agriculture Backend is running",
   });
 });
 
 
-// ===============================
-// Location Geocoding
-// ===============================
+// =========================================================
+// LOCATION GEOCODING
+// =========================================================
 
-app.get("/api/geocode", async (req, res) => {
-  try {
-    const { state, district } = req.query;
+app.get(
+  "/api/geocode",
+  async (req, res) => {
+    try {
+      const {
+        state,
+        district,
+      } = req.query;
 
-    if (!state || !district) {
-      return res.status(400).json({
-        message: "State and district are required.",
-      });
-    }
+      if (!state || !district) {
+        return res.status(400).json({
+          message:
+            "State and district are required.",
+        });
+      }
 
-    const locationQuery =
-      `${district}, ${state}, India`;
+      const locationQuery =
+        `${district}, ${state}, India`;
 
-    const geocodeUrl =
-      `https://geocoding-api.open-meteo.com/v1/search` +
-      `?name=${encodeURIComponent(locationQuery)}` +
-      `&count=5` +
-      `&language=en` +
-      `&format=json`;
+      const geocodeUrl =
+        "https://geocoding-api.open-meteo.com/v1/search" +
+        `?name=${encodeURIComponent(
+          locationQuery
+        )}` +
+        "&count=5" +
+        "&language=en" +
+        "&format=json";
 
-    const response =
-      await fetch(geocodeUrl);
+      const response =
+        await fetch(geocodeUrl);
 
-    if (!response.ok) {
-      throw new Error(
-        `Geocoding API returned ${response.status}`
-      );
-    }
-
-    const data =
-      await response.json();
-
-    if (
-      !data.results ||
-      data.results.length === 0
-    ) {
-      return res.status(404).json({
-        message: "Location not found.",
-      });
-    }
-
-    const location =
-      data.results[0];
-
-    res.json({
-      latitude: location.latitude,
-      longitude: location.longitude,
-      name: location.name,
-      country: location.country,
-      admin1: location.admin1 || null,
-    });
-
-  } catch (error) {
-    console.error(
-      "Geocoding API error:",
-      error.message
-    );
-
-    res.status(500).json({
-      message: "Failed to find location.",
-    });
-  }
-});
-
-
-// ===============================
-// Weather Information
-// ===============================
-
-app.get("/api/weather", async (req, res) => {
-  try {
-    const {
-      latitude,
-      longitude,
-    } = req.query;
-
-    if (!latitude || !longitude) {
-      return res.status(400).json({
-        message:
-          "Latitude and longitude are required.",
-      });
-    }
-
-    const weatherUrl =
-      `https://api.open-meteo.com/v1/forecast` +
-      `?latitude=${encodeURIComponent(latitude)}` +
-      `&longitude=${encodeURIComponent(longitude)}` +
-      `&current=temperature_2m,relative_humidity_2m,precipitation` +
-      `&hourly=precipitation` +
-      `&past_days=7` +
-      `&forecast_days=1` +
-      `&timezone=auto`;
-
-    const response =
-      await fetch(weatherUrl);
-
-    if (!response.ok) {
-      throw new Error(
-        `Weather API returned ${response.status}`
-      );
-    }
-
-    const weather =
-      await response.json();
-
-    const currentTemperature =
-      weather.current?.temperature_2m ??
-      null;
-
-    const currentHumidity =
-      weather.current
-        ?.relative_humidity_2m ??
-      null;
-
-    const currentPrecipitation =
-      weather.current?.precipitation ??
-      null;
-
-    const hourlyPrecipitation =
-      weather.hourly?.precipitation || [];
-
-    const recentPrecipitation =
-      hourlyPrecipitation
-        .filter(
-          (value) =>
-            typeof value === "number" &&
-            Number.isFinite(value)
-        )
-        .reduce(
-          (total, value) =>
-            total + value,
-          0
+      if (!response.ok) {
+        throw new Error(
+          `Geocoding API returned ${response.status}`
         );
+      }
 
-    res.json({
-      temperature:
-        currentTemperature,
+      const data =
+        await response.json();
 
-      humidity:
-        currentHumidity,
+      if (
+        !data.results ||
+        data.results.length === 0
+      ) {
+        return res.status(404).json({
+          message:
+            "Location not found.",
+        });
+      }
 
-      current_precipitation:
-        currentPrecipitation,
+      const location =
+        data.results[0];
 
-      recent_precipitation:
-        Number(
-          recentPrecipitation.toFixed(2)
-        ),
+      res.json({
+        latitude:
+          location.latitude,
 
-      temperature_unit:
-        weather.current_units
-          ?.temperature_2m ||
-        "°C",
+        longitude:
+          location.longitude,
 
-      humidity_unit:
-        weather.current_units
-          ?.relative_humidity_2m ||
-        "%",
+        name:
+          location.name,
 
-      precipitation_unit:
-        weather.current_units
-          ?.precipitation ||
-        "mm",
+        country:
+          location.country,
 
-      rainfall: null,
-    });
+        admin1:
+          location.admin1 || null,
+      });
+    } catch (error) {
+      console.error(
+        "Geocoding API error:",
+        error.message
+      );
 
-  } catch (error) {
-    console.error(
-      "Weather API error:",
-      error.message
-    );
-
-    res.status(500).json({
-      message:
-        "Failed to fetch weather information.",
-    });
+      res.status(500).json({
+        message:
+          "Failed to find location.",
+      });
+    }
   }
-});
+);
 
 
-// ===============================
-// Previous Year Yield Lookup
-// ===============================
+// =========================================================
+// WEATHER INFORMATION
+// =========================================================
+
+app.get(
+  "/api/weather",
+  async (req, res) => {
+    try {
+      const {
+        latitude,
+        longitude,
+      } = req.query;
+
+      if (!latitude || !longitude) {
+        return res.status(400).json({
+          message:
+            "Latitude and longitude are required.",
+        });
+      }
+
+      const weatherUrl =
+        "https://api.open-meteo.com/v1/forecast" +
+        `?latitude=${encodeURIComponent(
+          latitude
+        )}` +
+        `&longitude=${encodeURIComponent(
+          longitude
+        )}` +
+        "&current=temperature_2m,relative_humidity_2m,precipitation" +
+        "&hourly=precipitation" +
+        "&past_days=7" +
+        "&forecast_days=1" +
+        "&timezone=auto";
+
+      const response =
+        await fetch(weatherUrl);
+
+      if (!response.ok) {
+        throw new Error(
+          `Weather API returned ${response.status}`
+        );
+      }
+
+      const weather =
+        await response.json();
+
+      const currentTemperature =
+        weather.current
+          ?.temperature_2m ?? null;
+
+      const currentHumidity =
+        weather.current
+          ?.relative_humidity_2m ?? null;
+
+      const currentPrecipitation =
+        weather.current
+          ?.precipitation ?? null;
+
+      const hourlyPrecipitation =
+        weather.hourly
+          ?.precipitation || [];
+
+      const recentPrecipitation =
+        hourlyPrecipitation
+          .filter(
+            (value) =>
+              typeof value === "number" &&
+              Number.isFinite(value)
+          )
+          .reduce(
+            (total, value) =>
+              total + value,
+            0
+          );
+
+      res.json({
+        temperature:
+          currentTemperature,
+
+        humidity:
+          currentHumidity,
+
+        current_precipitation:
+          currentPrecipitation,
+
+        recent_precipitation:
+          Number(
+            recentPrecipitation.toFixed(2)
+          ),
+
+        temperature_unit:
+          weather.current_units
+            ?.temperature_2m ||
+          "°C",
+
+        humidity_unit:
+          weather.current_units
+            ?.relative_humidity_2m ||
+          "%",
+
+        precipitation_unit:
+          weather.current_units
+            ?.precipitation ||
+          "mm",
+
+        rainfall: null,
+      });
+    } catch (error) {
+      console.error(
+        "Weather API error:",
+        error.message
+      );
+
+      res.status(500).json({
+        message:
+          "Failed to fetch weather information.",
+      });
+    }
+  }
+);
+
+
+// =========================================================
+// PREVIOUS YEAR YIELD LOOKUP
+// =========================================================
 
 app.get(
   "/api/previous-yield",
@@ -324,7 +378,11 @@ app.get(
       const currentYear =
         Number(year_start);
 
-      if (!Number.isInteger(currentYear)) {
+      if (
+        !Number.isInteger(
+          currentYear
+        )
+      ) {
         return res.status(400).json({
           message:
             "year_start must be a valid year.",
@@ -338,59 +396,61 @@ app.get(
         `${previousYear}-${currentYear}`;
 
       const matchingRecords =
-        yieldRecords.filter((record) => {
+        yieldRecords.filter(
+          (record) => {
+            const recordYear =
+              normalizeText(
+                record.year
+              );
 
-          const recordYear =
-            normalizeText(record.year);
+            const recordState =
+              normalizeText(
+                record.state_name
+              );
 
-          const recordState =
-            normalizeText(
-              record.state_name
+            const recordDistrict =
+              normalizeText(
+                record.district_name
+              );
+
+            const recordCrop =
+              normalizeText(
+                record.crop_name
+              );
+
+            const recordSeason =
+              normalizeText(
+                record.season
+              );
+
+            return (
+              recordYear ===
+                normalizeText(
+                  previousYearLabel
+                ) &&
+              recordState ===
+                normalizeText(
+                  state_name
+                ) &&
+              recordDistrict ===
+                normalizeText(
+                  district_name
+                ) &&
+              recordCrop ===
+                normalizeText(
+                  crop_name
+                ) &&
+              recordSeason ===
+                normalizeText(
+                  season
+                )
             );
-
-          const recordDistrict =
-            normalizeText(
-              record.district_name
-            );
-
-          const recordCrop =
-            normalizeText(
-              record.crop_name
-            );
-
-          const recordSeason =
-            normalizeText(
-              record.season
-            );
-
-          return (
-            recordYear ===
-              normalizeText(
-                previousYearLabel
-              ) &&
-            recordState ===
-              normalizeText(
-                state_name
-              ) &&
-            recordDistrict ===
-              normalizeText(
-                district_name
-              ) &&
-            recordCrop ===
-              normalizeText(
-                crop_name
-              ) &&
-            recordSeason ===
-              normalizeText(
-                season
-              )
-          );
-        });
+          }
+        );
 
       const validRecords =
         matchingRecords.filter(
           (record) => {
-
             const value =
               Number(record.yield);
 
@@ -401,7 +461,9 @@ app.get(
           }
         );
 
-      if (validRecords.length === 0) {
+      if (
+        validRecords.length === 0
+      ) {
         return res.status(404).json({
           message:
             "Previous year yield was not found for the selected location, crop and season.",
@@ -433,13 +495,13 @@ app.get(
           previousYield,
 
         yield_unit:
-          validRecords[0].yield_unit ||
+          validRecords[0]
+            .yield_unit ||
           "Tonnes/Hectare",
 
         source:
           "Historical agricultural yield dataset",
       });
-
     } catch (error) {
       console.error(
         "Previous yield lookup error:",
@@ -455,9 +517,9 @@ app.get(
 );
 
 
-// ===============================
-// Crop Recommendation
-// ===============================
+// =========================================================
+// CROP RECOMMENDATION
+// =========================================================
 
 app.post(
   "/api/crop-recommendation",
@@ -469,13 +531,14 @@ app.post(
           req.body
         );
 
-      res.json(response.data);
-
+      res.json(
+        response.data
+      );
     } catch (error) {
       console.error(
         "Crop AI service error:",
         error.response?.data ||
-        error.message
+          error.message
       );
 
       res.status(500).json({
@@ -487,9 +550,9 @@ app.post(
 );
 
 
-// ===============================
-// Plant Disease Detection
-// ===============================
+// =========================================================
+// PLANT DISEASE DETECTION
+// =========================================================
 
 app.post(
   "/api/plant-disease",
@@ -527,17 +590,19 @@ app.post(
               ...formData.getHeaders(),
             },
 
-            maxBodyLength: Infinity,
+            maxBodyLength:
+              Infinity,
           }
         );
 
-      res.json(response.data);
-
+      res.json(
+        response.data
+      );
     } catch (error) {
       console.error(
         "Plant Disease AI service error:",
         error.response?.data ||
-        error.message
+          error.message
       );
 
       res.status(500).json({
@@ -549,9 +614,9 @@ app.post(
 );
 
 
-// ===============================
-// Yield Prediction
-// ===============================
+// =========================================================
+// YIELD PREDICTION
+// =========================================================
 
 app.post(
   "/api/yield-prediction",
@@ -563,13 +628,14 @@ app.post(
           req.body
         );
 
-      res.json(response.data);
-
+      res.json(
+        response.data
+      );
     } catch (error) {
       console.error(
         "Yield AI service error:",
         error.response?.data ||
-        error.message
+          error.message
       );
 
       res.status(500).json({
@@ -581,9 +647,9 @@ app.post(
 );
 
 
-// ===============================
-// Recommendation Engine
-// ===============================
+// =========================================================
+// RECOMMENDATION ENGINE
+// =========================================================
 
 app.post(
   "/api/recommendation",
@@ -595,13 +661,14 @@ app.post(
           req.body
         );
 
-      res.json(response.data);
-
+      res.json(
+        response.data
+      );
     } catch (error) {
       console.error(
         "Recommendation AI service error:",
         error.response?.data ||
-        error.message
+          error.message
       );
 
       res.status(500).json({
@@ -613,16 +680,19 @@ app.post(
 );
 
 
-// ===============================
-// Integrated AI Workflow
-// ===============================
+// =========================================================
+// INTEGRATED AI WORKFLOW
+// =========================================================
 
 app.post(
   "/api/ai-analysis",
   upload.single("file"),
   async (req, res) => {
-
     try {
+
+      // ========================================
+      // FILE VALIDATION
+      // ========================================
 
       if (!req.file) {
         return res.status(400).json({
@@ -631,13 +701,140 @@ app.post(
         });
       }
 
+      if (
+        !req.file.mimetype ||
+        !req.file.mimetype.startsWith(
+          "image/"
+        )
+      ) {
+        return res.status(400).json({
+          message:
+            "Uploaded file must be an image.",
+        });
+      }
 
-      // --------------------------------
-      // Prepare crop input
-      // --------------------------------
+
+      // ========================================
+      // REQUIRED TEXT FIELDS
+      // ========================================
+
+      const requiredFields = [
+        "year_start",
+        "state_name",
+        "district_name",
+        "crop_name",
+        "crop_type",
+        "season",
+        "area",
+      ];
+
+      for (
+        const field of requiredFields
+      ) {
+        if (
+          req.body[field] ===
+            undefined ||
+          String(
+            req.body[field]
+          ).trim() === ""
+        ) {
+          return res.status(400).json({
+            message:
+              `${field} is required.`,
+          });
+        }
+      }
+
+
+      // ========================================
+      // NUMERIC VALIDATION
+      // ========================================
+
+      const validations = [
+
+        validateNumber(
+          req.body.N,
+          "Nitrogen (N)",
+          0,
+          140
+        ),
+
+        validateNumber(
+          req.body.P,
+          "Phosphorus (P)",
+          5,
+          145
+        ),
+
+        validateNumber(
+          req.body.K,
+          "Potassium (K)",
+          5,
+          205
+        ),
+
+        validateNumber(
+          req.body.temperature,
+          "Temperature",
+          8.8,
+          43.7
+        ),
+
+        validateNumber(
+          req.body.humidity,
+          "Humidity",
+          14.3,
+          100
+        ),
+
+        validateNumber(
+          req.body.ph,
+          "Soil pH",
+          3.5,
+          10
+        ),
+
+        validateNumber(
+          req.body.rainfall,
+          "Rainfall",
+          20.2,
+          298.6
+        ),
+
+        validateNumber(
+          req.body.year_start,
+          "Year",
+          1998,
+          2030
+        ),
+
+        validateNumber(
+          req.body.area,
+          "Area",
+          0.0001,
+          1000000
+        ),
+      ];
+
+      const validationError =
+        validations.find(
+          (message) =>
+            message !== null
+        );
+
+      if (validationError) {
+        return res.status(400).json({
+          message:
+            validationError,
+        });
+      }
+
+
+      // ========================================
+      // PREPARE CROP INPUT
+      // ========================================
 
       const cropInput = {
-
         N:
           Number(req.body.N),
 
@@ -648,10 +845,14 @@ app.post(
           Number(req.body.K),
 
         temperature:
-          Number(req.body.temperature),
+          Number(
+            req.body.temperature
+          ),
 
         humidity:
-          Number(req.body.humidity),
+          Number(
+            req.body.humidity
+          ),
 
         ph:
           Number(req.body.ph),
@@ -661,12 +862,14 @@ app.post(
       };
 
 
-      // --------------------------------
-      // Previous year yield
-      // --------------------------------
+      // ========================================
+      // PREVIOUS YEAR YIELD
+      // ========================================
 
       const currentYear =
-        Number(req.body.year_start);
+        Number(
+          req.body.year_start
+        );
 
       const previousYear =
         currentYear - 1;
@@ -683,70 +886,77 @@ app.post(
         "user_input";
 
 
-      // --------------------------------
-      // Automatic historical lookup
-      // --------------------------------
+      // ========================================
+      // AUTOMATIC HISTORICAL LOOKUP
+      // ========================================
 
       const matchingRecords =
-        yieldRecords.filter((record) => {
+        yieldRecords.filter(
+          (record) => {
 
-          const recordYear =
-            normalizeText(record.year);
+            const recordYear =
+              normalizeText(
+                record.year
+              );
 
-          const recordState =
-            normalizeText(
-              record.state_name
+            const recordState =
+              normalizeText(
+                record.state_name
+              );
+
+            const recordDistrict =
+              normalizeText(
+                record.district_name
+              );
+
+            const recordCrop =
+              normalizeText(
+                record.crop_name
+              );
+
+            const recordSeason =
+              normalizeText(
+                record.season
+              );
+
+            const recordYield =
+              Number(
+                record.yield
+              );
+
+            return (
+              recordYear ===
+                normalizeText(
+                  previousYearLabel
+                ) &&
+              recordState ===
+                normalizeText(
+                  req.body.state_name
+                ) &&
+              recordDistrict ===
+                normalizeText(
+                  req.body.district_name
+                ) &&
+              recordCrop ===
+                normalizeText(
+                  req.body.crop_name
+                ) &&
+              recordSeason ===
+                normalizeText(
+                  req.body.season
+                ) &&
+              Number.isFinite(
+                recordYield
+              ) &&
+              recordYield >= 0
             );
-
-          const recordDistrict =
-            normalizeText(
-              record.district_name
-            );
-
-          const recordCrop =
-            normalizeText(
-              record.crop_name
-            );
-
-          const recordSeason =
-            normalizeText(
-              record.season
-            );
-
-          const recordYield =
-            Number(record.yield);
-
-          return (
-            recordYear ===
-              normalizeText(
-                previousYearLabel
-              ) &&
-            recordState ===
-              normalizeText(
-                req.body.state_name
-              ) &&
-            recordDistrict ===
-              normalizeText(
-                req.body.district_name
-              ) &&
-            recordCrop ===
-              normalizeText(
-                req.body.crop_name
-              ) &&
-            recordSeason ===
-              normalizeText(
-                req.body.season
-              ) &&
-            Number.isFinite(recordYield) &&
-            recordYield >= 0
-          );
-        });
+          }
+        );
 
 
       if (
         matchingRecords.length > 0
       ) {
-
         previousYield =
           Number(
             matchingRecords[0].yield
@@ -757,12 +967,14 @@ app.post(
       }
 
 
-      // --------------------------------
-      // Validate previous yield
-      // --------------------------------
+      // ========================================
+      // VALIDATE PREVIOUS YIELD
+      // ========================================
 
       if (
-        !Number.isFinite(previousYield) ||
+        !Number.isFinite(
+          previousYield
+        ) ||
         previousYield < 0
       ) {
         return res.status(400).json({
@@ -772,12 +984,11 @@ app.post(
       }
 
 
-      // --------------------------------
-      // Prepare yield input
-      // --------------------------------
+      // ========================================
+      // PREPARE YIELD INPUT
+      // ========================================
 
       const yieldInput = {
-
         year_start:
           currentYear,
 
@@ -804,9 +1015,9 @@ app.post(
       };
 
 
-      // --------------------------------
-      // Disease request
-      // --------------------------------
+      // ========================================
+      // DISEASE REQUEST
+      // ========================================
 
       const diseaseFormData =
         new FormData();
@@ -824,9 +1035,9 @@ app.post(
       );
 
 
-      // --------------------------------
-      // Run three AI models
-      // --------------------------------
+      // ========================================
+      // RUN THREE AI MODELS
+      // ========================================
 
       const [
         cropResponse,
@@ -859,13 +1070,12 @@ app.post(
           `${YIELD_AI_URL}/predict`,
           yieldInput
         ),
-
       ]);
 
 
-      // --------------------------------
-      // Extract AI results
-      // --------------------------------
+      // ========================================
+      // EXTRACT RESULTS
+      // ========================================
 
       const cropResult =
         cropResponse.data;
@@ -877,12 +1087,11 @@ app.post(
         yieldResponse.data;
 
 
-      // --------------------------------
-      // Recommendation AI input
-      // --------------------------------
+      // ========================================
+      // RECOMMENDATION INPUT
+      // ========================================
 
       const recommendationInput = {
-
         recommended_crop:
           cropResult.recommended_crop,
 
@@ -903,9 +1112,9 @@ app.post(
       };
 
 
-      // --------------------------------
-      // Run Recommendation Engine
-      // --------------------------------
+      // ========================================
+      // RUN RECOMMENDATION ENGINE
+      // ========================================
 
       const recommendationResponse =
         await axios.post(
@@ -914,12 +1123,11 @@ app.post(
         );
 
 
-      // --------------------------------
-      // Final integrated response
-      // --------------------------------
+      // ========================================
+      // FINAL INTEGRATED RESPONSE
+      // ========================================
 
       res.json({
-
         crop:
           cropResult,
 
@@ -933,7 +1141,6 @@ app.post(
           recommendationResponse.data,
 
         yield_metadata: {
-
           current_year:
             currentYear,
 
@@ -948,9 +1155,7 @@ app.post(
 
           source:
             previousYieldSource,
-
         },
-
       });
 
     } catch (error) {
@@ -958,32 +1163,27 @@ app.post(
       console.error(
         "Integrated AI workflow error:",
         error.response?.data ||
-        error.message
+          error.message
       );
 
       res.status(500).json({
-
         message:
           "Failed to complete integrated AI analysis",
-
       });
-
     }
   }
 );
 
 
-// ===============================
-// Start Server
-// ===============================
+// =========================================================
+// START SERVER
+// =========================================================
 
 app.listen(
   PORT,
   () => {
-
     console.log(
       `Backend server running on http://localhost:${PORT}`
     );
-
   }
 );
