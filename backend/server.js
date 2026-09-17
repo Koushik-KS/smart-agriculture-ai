@@ -33,6 +33,72 @@ app.get("/", (req, res) => {
 
 
 // ===============================
+// Weather Information
+// ===============================
+
+app.get("/api/weather", async (req, res) => {
+  try {
+    const { latitude, longitude } = req.query;
+
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        message: "Latitude and longitude are required.",
+      });
+    }
+
+    const weatherUrl =
+      `https://api.open-meteo.com/v1/forecast` +
+      `?latitude=${encodeURIComponent(latitude)}` +
+      `&longitude=${encodeURIComponent(longitude)}` +
+      `&current=temperature_2m,relative_humidity_2m,precipitation` +
+      `&timezone=auto`;
+
+    const response = await fetch(weatherUrl);
+
+    if (!response.ok) {
+      throw new Error(
+        `Weather API returned ${response.status}`
+      );
+    }
+
+    const weather = await response.json();
+
+    res.json({
+      temperature:
+        weather.current?.temperature_2m ?? null,
+
+      humidity:
+        weather.current?.relative_humidity_2m ?? null,
+
+      rainfall:
+        weather.current?.precipitation ?? null,
+
+      temperature_unit:
+        weather.current_units?.temperature_2m ?? "°C",
+
+      humidity_unit:
+        weather.current_units?.relative_humidity_2m ?? "%",
+
+      rainfall_unit:
+        weather.current_units?.precipitation ?? "mm",
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Weather API error:",
+      error.message
+    );
+
+    res.status(500).json({
+      message:
+        "Failed to fetch weather information.",
+    });
+  }
+});
+
+
+// ===============================
 // Crop Recommendation
 // ===============================
 
@@ -342,7 +408,7 @@ app.post(
         crop_confidence:
           cropResult.confidence,
 
-        // User selected crop
+        // User-selected crop
         // Used for crop-disease consistency check
         selected_crop:
           req.body.crop_name,
@@ -412,6 +478,67 @@ app.post(
   }
 );
 
+// ===============================
+// Location Geocoding
+// ===============================
+
+app.get("/api/geocode", async (req, res) => {
+  try {
+    const { state, district } = req.query;
+
+    if (!state || !district) {
+      return res.status(400).json({
+        message: "State and district are required.",
+      });
+    }
+
+    const locationQuery = `${district}, ${state}, India`;
+
+    const geocodeUrl =
+      `https://geocoding-api.open-meteo.com/v1/search` +
+      `?name=${encodeURIComponent(locationQuery)}` +
+      `&count=5` +
+      `&language=en` +
+      `&format=json`;
+
+    const response = await fetch(geocodeUrl);
+
+    if (!response.ok) {
+      throw new Error(
+        `Geocoding API returned ${response.status}`
+      );
+    }
+
+    const data = await response.json();
+
+    if (!data.results || data.results.length === 0) {
+      return res.status(404).json({
+        message: "Location not found.",
+      });
+    }
+
+    const result = data.results[0];
+
+    res.json({
+      latitude: result.latitude,
+      longitude: result.longitude,
+      name: result.name,
+      country: result.country,
+      admin1: result.admin1 || null,
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Geocoding API error:",
+      error.message
+    );
+
+    res.status(500).json({
+      message: "Failed to find location.",
+    });
+  }
+});
 
 // ===============================
 // Start Server
