@@ -113,7 +113,6 @@ export default function AIAnalysisPage() {
   const [error, setError] =
     useState("");
 
-
   // ==========================================
   // LOCATION DATA
   // ==========================================
@@ -126,7 +125,6 @@ export default function AIAnalysisPage() {
 
   const districts =
     selectedState?.districts || [];
-
 
   // ==========================================
   // FETCH WEATHER
@@ -175,7 +173,6 @@ export default function AIAnalysisPage() {
           );
         }
 
-
         // STEP 2: WEATHER
 
         const weatherResponse =
@@ -197,11 +194,9 @@ export default function AIAnalysisPage() {
           );
         }
 
-
         // STEP 3: STORE WEATHER
 
         setWeather(data);
-
 
         // STEP 4: UPDATE CURRENT WEATHER
 
@@ -218,7 +213,6 @@ export default function AIAnalysisPage() {
               ? String(data.humidity)
               : previous.humidity,
         }));
-
       } catch (err) {
         setWeather(null);
 
@@ -236,7 +230,6 @@ export default function AIAnalysisPage() {
       form.district_name,
     ]
   );
-
 
   // ==========================================
   // FETCH PREVIOUS YEAR YIELD
@@ -300,7 +293,6 @@ export default function AIAnalysisPage() {
           }
 
           setPreviousYield(data);
-
         } catch (err) {
           setPreviousYield(null);
 
@@ -322,7 +314,6 @@ export default function AIAnalysisPage() {
       ]
     );
 
-
   // ==========================================
   // FETCH WEATHER WHEN LOCATION CHANGES
   // ==========================================
@@ -331,15 +322,13 @@ export default function AIAnalysisPage() {
     fetchWeather();
   }, [fetchWeather]);
 
-
   // ==========================================
-  // FETCH PREVIOUS YIELD WHEN INPUTS CHANGE
+  // FETCH PREVIOUS YEAR YIELD
   // ==========================================
 
   useEffect(() => {
     fetchPreviousYield();
   }, [fetchPreviousYield]);
-
 
   // ==========================================
   // FORM CHANGE
@@ -354,7 +343,6 @@ export default function AIAnalysisPage() {
       name,
       value,
     } = e.target;
-
 
     // STATE CHANGE
 
@@ -374,8 +362,7 @@ export default function AIAnalysisPage() {
       setForm((previous) => ({
         ...previous,
 
-        state_name:
-          value,
+        state_name: value,
 
         district_name:
           newState?.districts[0] || "",
@@ -384,15 +371,28 @@ export default function AIAnalysisPage() {
       return;
     }
 
-
     // NORMAL FIELD CHANGE
 
     setForm((previous) => ({
       ...previous,
       [name]: value,
     }));
-  };
 
+    // Clear previous result when important
+    // agricultural inputs are changed.
+
+    if (
+      name === "N" ||
+      name === "P" ||
+      name === "K" ||
+      name === "ph" ||
+      name === "rainfall" ||
+      name === "temperature" ||
+      name === "humidity"
+    ) {
+      setResult(null);
+    }
+  };
 
   // ==========================================
   // FILE CHANGE
@@ -405,11 +405,34 @@ export default function AIAnalysisPage() {
       e.target.files &&
       e.target.files[0]
     ) {
-      setFile(e.target.files[0]);
+      const selectedFile =
+        e.target.files[0];
+
+      const allowedTypes = [
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+      ];
+
+      if (
+        !allowedTypes.includes(
+          selectedFile.type
+        )
+      ) {
+        setFile(null);
+
+        setError(
+          "Please select a PNG, JPG or JPEG image."
+        );
+
+        return;
+      }
+
+      setFile(selectedFile);
       setError("");
+      setResult(null);
     }
   };
-
 
   // ==========================================
   // SUBMIT AI ANALYSIS
@@ -420,6 +443,12 @@ export default function AIAnalysisPage() {
   ) => {
     e.preventDefault();
 
+    setError("");
+
+    // ========================================
+    // REQUIRED IMAGE
+    // ========================================
+
     if (!file) {
       setError(
         "Please upload a plant leaf image."
@@ -427,6 +456,10 @@ export default function AIAnalysisPage() {
 
       return;
     }
+
+    // ========================================
+    // PREVIOUS YEAR YIELD
+    // ========================================
 
     if (!previousYield) {
       setError(
@@ -436,14 +469,174 @@ export default function AIAnalysisPage() {
       return;
     }
 
+    // ========================================
+    // NUMERIC VALIDATION
+    // ========================================
+
+    const nitrogen =
+      Number(form.N);
+
+    const phosphorus =
+      Number(form.P);
+
+    const potassium =
+      Number(form.K);
+
+    const temperature =
+      Number(form.temperature);
+
+    const humidity =
+      Number(form.humidity);
+
+    const ph =
+      Number(form.ph);
+
+    const rainfall =
+      Number(form.rainfall);
+
+    const year =
+      Number(form.year_start);
+
+    const area =
+      Number(form.area);
+
+    // ========================================
+    // CROP MODEL RANGE VALIDATION
+    // ========================================
+
+    if (
+      !Number.isFinite(nitrogen) ||
+      nitrogen < 0 ||
+      nitrogen > 140
+    ) {
+      setError(
+        "Nitrogen (N) must be between 0 and 140."
+      );
+
+      return;
+    }
+
+    if (
+      !Number.isFinite(phosphorus) ||
+      phosphorus < 5 ||
+      phosphorus > 145
+    ) {
+      setError(
+        "Phosphorus (P) must be between 5 and 145."
+      );
+
+      return;
+    }
+
+    if (
+      !Number.isFinite(potassium) ||
+      potassium < 5 ||
+      potassium > 205
+    ) {
+      setError(
+        "Potassium (K) must be between 5 and 205."
+      );
+
+      return;
+    }
+
+    if (
+      !Number.isFinite(ph) ||
+      ph < 3.5 ||
+      ph > 10
+    ) {
+      setError(
+        "Soil pH must be between 3.5 and 10."
+      );
+
+      return;
+    }
+
+    if (
+      !Number.isFinite(rainfall) ||
+      rainfall < 20.2 ||
+      rainfall > 298.6
+    ) {
+      setError(
+        "Rainfall must be between 20.2 and 298.6 mm."
+      );
+
+      return;
+    }
+
+    // ========================================
+    // TEMPERATURE VALIDATION
+    // ========================================
+
+    if (
+      !Number.isFinite(temperature) ||
+      temperature < 8.8 ||
+      temperature > 43.7
+    ) {
+      setError(
+        "Temperature is outside the supported crop-model range (8.8°C to 43.7°C)."
+      );
+
+      return;
+    }
+
+    // ========================================
+    // HUMIDITY VALIDATION
+    // ========================================
+
+    if (
+      !Number.isFinite(humidity) ||
+      humidity < 14.3 ||
+      humidity > 100
+    ) {
+      setError(
+        "Humidity is outside the supported crop-model range (14.3% to 100%)."
+      );
+
+      return;
+    }
+
+    // ========================================
+    // YEAR VALIDATION
+    // ========================================
+
+    if (
+      !Number.isInteger(year) ||
+      year < 1997 ||
+      year > 2030
+    ) {
+      setError(
+        "Year must be between 1997 and 2030."
+      );
+
+      return;
+    }
+
+    // ========================================
+    // AREA VALIDATION
+    // ========================================
+
+    if (
+      !Number.isFinite(area) ||
+      area <= 0
+    ) {
+      setError(
+        "Area must be greater than 0 hectares."
+      );
+
+      return;
+    }
+
+    // ========================================
+    // START ANALYSIS
+    // ========================================
+
     setLoading(true);
-    setError("");
     setResult(null);
 
     try {
       const formData =
         new FormData();
-
 
       Object.entries(form).forEach(
         ([key, value]) => {
@@ -454,7 +647,6 @@ export default function AIAnalysisPage() {
         }
       );
 
-
       // Automatically retrieved previous yield
 
       formData.append(
@@ -464,12 +656,10 @@ export default function AIAnalysisPage() {
         )
       );
 
-
       formData.append(
         "file",
         file
       );
-
 
       const response =
         await fetch(
@@ -480,10 +670,8 @@ export default function AIAnalysisPage() {
           }
         );
 
-
       const data =
         await response.json();
-
 
       if (!response.ok) {
         throw new Error(
@@ -492,9 +680,7 @@ export default function AIAnalysisPage() {
         );
       }
 
-
       setResult(data);
-
     } catch (err) {
       setError(
         err instanceof Error
@@ -505,7 +691,6 @@ export default function AIAnalysisPage() {
       setLoading(false);
     }
   };
-
 
   // ==========================================
   // FORMAT DISEASE NAME
@@ -525,7 +710,6 @@ export default function AIAnalysisPage() {
       );
   };
 
-
   // ==========================================
   // FORMAT STATUS
   // ==========================================
@@ -544,7 +728,6 @@ export default function AIAnalysisPage() {
           char.toUpperCase()
       );
   };
-
 
   // ==========================================
   // UI
@@ -571,11 +754,9 @@ export default function AIAnalysisPage() {
 
           </div>
 
-
           <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
             Smart Agriculture AI
           </h1>
-
 
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-gray-600 sm:text-lg">
             Analyze soil conditions, plant health
@@ -584,7 +765,6 @@ export default function AIAnalysisPage() {
           </p>
 
         </div>
-
 
         {/* FORM */}
 
@@ -608,7 +788,6 @@ export default function AIAnalysisPage() {
 
           </div>
 
-
           <div className="p-6 sm:p-8">
 
             {/* SOIL & WEATHER */}
@@ -619,7 +798,6 @@ export default function AIAnalysisPage() {
               description="Soil values are entered manually. Temperature and humidity are automatically retrieved using the selected state and district."
             />
 
-
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
 
               <InputField
@@ -628,8 +806,9 @@ export default function AIAnalysisPage() {
                 value={form.N}
                 onChange={handleChange}
                 type="number"
+                min="0"
+                max="140"
               />
-
 
               <InputField
                 label="Phosphorus (P)"
@@ -637,8 +816,9 @@ export default function AIAnalysisPage() {
                 value={form.P}
                 onChange={handleChange}
                 type="number"
+                min="5"
+                max="145"
               />
-
 
               <InputField
                 label="Potassium (K)"
@@ -646,8 +826,9 @@ export default function AIAnalysisPage() {
                 value={form.K}
                 onChange={handleChange}
                 type="number"
+                min="5"
+                max="205"
               />
-
 
               <WeatherInput
                 label="Temperature (°C)"
@@ -655,8 +836,9 @@ export default function AIAnalysisPage() {
                 value={form.temperature}
                 onChange={handleChange}
                 loading={weatherLoading}
+                min="8.8"
+                max="43.7"
               />
-
 
               <WeatherInput
                 label="Humidity (%)"
@@ -664,8 +846,9 @@ export default function AIAnalysisPage() {
                 value={form.humidity}
                 onChange={handleChange}
                 loading={weatherLoading}
+                min="14.3"
+                max="100"
               />
-
 
               <InputField
                 label="Soil pH"
@@ -674,8 +857,9 @@ export default function AIAnalysisPage() {
                 onChange={handleChange}
                 type="number"
                 step="0.1"
+                min="3.5"
+                max="10"
               />
-
 
               <InputField
                 label="Rainfall (mm)"
@@ -684,10 +868,11 @@ export default function AIAnalysisPage() {
                 onChange={handleChange}
                 type="number"
                 step="0.1"
+                min="20.2"
+                max="298.6"
               />
 
             </div>
-
 
             {/* WEATHER STATUS */}
 
@@ -702,13 +887,11 @@ export default function AIAnalysisPage() {
                       🌤️ Weather data loaded automatically
                     </p>
 
-
                     <p className="mt-1 text-xs text-gray-500">
                       Location:{" "}
                       {form.district_name},{" "}
                       {form.state_name}
                     </p>
-
 
                     {weather.recent_precipitation !==
                       null && (
@@ -722,7 +905,6 @@ export default function AIAnalysisPage() {
                   </div>
                 )}
 
-
                 {weatherError && (
                   <p className="text-sm font-medium text-red-600">
                     ⚠️ {weatherError}
@@ -730,7 +912,6 @@ export default function AIAnalysisPage() {
                 )}
 
               </div>
-
 
               <button
                 type="button"
@@ -745,7 +926,6 @@ export default function AIAnalysisPage() {
 
             </div>
 
-
             {/* LOCATION & CROP */}
 
             <div className="mt-10">
@@ -756,7 +936,6 @@ export default function AIAnalysisPage() {
                 description="Select the agricultural location and provide crop details."
               />
 
-
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
 
                 <InputField
@@ -765,8 +944,9 @@ export default function AIAnalysisPage() {
                   value={form.year_start}
                   onChange={handleChange}
                   type="number"
+                  min="1997"
+                  max="2030"
                 />
-
 
                 <SelectField
                   label="State"
@@ -779,7 +959,6 @@ export default function AIAnalysisPage() {
                   )}
                 />
 
-
                 <SelectField
                   label="District"
                   name="district_name"
@@ -788,7 +967,6 @@ export default function AIAnalysisPage() {
                   options={districts}
                 />
 
-
                 <InputField
                   label="Crop"
                   name="crop_name"
@@ -796,14 +974,12 @@ export default function AIAnalysisPage() {
                   onChange={handleChange}
                 />
 
-
                 <InputField
                   label="Crop Type"
                   name="crop_type"
                   value={form.crop_type}
                   onChange={handleChange}
                 />
-
 
                 <InputField
                   label="Season"
@@ -816,7 +992,6 @@ export default function AIAnalysisPage() {
 
             </div>
 
-
             {/* YIELD */}
 
             <div className="mt-10">
@@ -827,7 +1002,6 @@ export default function AIAnalysisPage() {
                 description="Previous-year yield is automatically retrieved from the historical agricultural dataset."
               />
 
-
               <div className="grid gap-5 sm:grid-cols-2">
 
                 <InputField
@@ -837,8 +1011,8 @@ export default function AIAnalysisPage() {
                   onChange={handleChange}
                   type="number"
                   step="0.01"
+                  min="0.01"
                 />
-
 
                 {/* AUTOMATIC PREVIOUS YIELD */}
 
@@ -850,7 +1024,6 @@ export default function AIAnalysisPage() {
                       Previous Yield (Tonnes/Ha)
                     </label>
 
-
                     <span className="text-xs font-semibold text-green-600">
                       {previousYieldLoading
                         ? "Retrieving..."
@@ -858,7 +1031,6 @@ export default function AIAnalysisPage() {
                     </span>
 
                   </div>
-
 
                   <div className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3">
 
@@ -888,7 +1060,6 @@ export default function AIAnalysisPage() {
 
                   </div>
 
-
                   {previousYieldError && (
                     <p className="mt-2 text-xs text-red-600">
                       ⚠️ {previousYieldError}
@@ -901,7 +1072,6 @@ export default function AIAnalysisPage() {
 
             </div>
 
-
             {/* DISEASE IMAGE */}
 
             <div className="mt-10">
@@ -912,7 +1082,6 @@ export default function AIAnalysisPage() {
                 description="Upload a clear image of the plant leaf."
               />
 
-
               <label
                 htmlFor="plant-image"
                 className="group flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-green-300 bg-green-50/50 px-6 py-10 text-center transition hover:border-green-500 hover:bg-green-50"
@@ -922,23 +1091,19 @@ export default function AIAnalysisPage() {
                   📷
                 </div>
 
-
                 <p className="text-lg font-semibold text-gray-800">
                   {file
                     ? "Change plant image"
                     : "Upload plant leaf image"}
                 </p>
 
-
                 <p className="mt-2 text-sm text-gray-500">
                   PNG, JPG or JPEG images are supported
                 </p>
 
-
                 <span className="mt-5 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white transition group-hover:bg-green-700">
                   Choose Image
                 </span>
-
 
                 <input
                   id="plant-image"
@@ -950,7 +1115,6 @@ export default function AIAnalysisPage() {
 
               </label>
 
-
               {file && (
                 <div className="mt-4 flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-4">
 
@@ -958,13 +1122,11 @@ export default function AIAnalysisPage() {
                     🖼️
                   </div>
 
-
                   <div className="min-w-0">
 
                     <p className="text-sm font-semibold text-gray-800">
                       Selected image
                     </p>
-
 
                     <p className="truncate text-sm text-gray-500">
                       {file.name}
@@ -977,7 +1139,6 @@ export default function AIAnalysisPage() {
 
             </div>
 
-
             {/* ERROR */}
 
             {error && (
@@ -987,13 +1148,11 @@ export default function AIAnalysisPage() {
                   ⚠️
                 </span>
 
-
                 <div>
 
                   <p className="font-semibold">
                     Analysis Error
                   </p>
-
 
                   <p className="mt-1 text-sm">
                     {error}
@@ -1003,7 +1162,6 @@ export default function AIAnalysisPage() {
 
               </div>
             )}
-
 
             {/* SUBMIT */}
 
@@ -1043,7 +1201,6 @@ export default function AIAnalysisPage() {
 
         </form>
 
-
         {/* RESULTS */}
 
         {result && (
@@ -1059,18 +1216,15 @@ export default function AIAnalysisPage() {
                   Analysis Complete
                 </p>
 
-
                 <h2 className="mt-1 text-3xl font-extrabold text-gray-900">
                   AI Analysis Results
                 </h2>
-
 
                 <p className="mt-1 text-gray-600">
                   Results generated from the integrated AI pipeline.
                 </p>
 
               </div>
-
 
               <div
                 className={`inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-bold ${
@@ -1088,7 +1242,6 @@ export default function AIAnalysisPage() {
                     : "✅"}
                 </span>
 
-
                 {formatStatus(
                   result.recommendation.overall_status
                 )}
@@ -1096,7 +1249,6 @@ export default function AIAnalysisPage() {
               </div>
 
             </div>
-
 
             {/* RESULT CARDS */}
 
@@ -1114,7 +1266,6 @@ export default function AIAnalysisPage() {
                 }
               />
 
-
               <ResultCard
                 icon="🦠"
                 title="Plant Disease"
@@ -1127,7 +1278,6 @@ export default function AIAnalysisPage() {
                 }
               />
 
-
               <YieldResultCard
                 value={
                   result.yield.predicted_yield
@@ -1138,7 +1288,6 @@ export default function AIAnalysisPage() {
               />
 
             </div>
-
 
             {/* AUTOMATIC YIELD INFORMATION */}
 
@@ -1151,13 +1300,11 @@ export default function AIAnalysisPage() {
                     📊
                   </span>
 
-
                   <div>
 
                     <h3 className="font-bold text-blue-900">
                       Historical Yield Used
                     </h3>
-
 
                     <p className="mt-1 text-sm text-blue-800">
                       Previous year (
@@ -1175,7 +1322,6 @@ export default function AIAnalysisPage() {
 
               </div>
             )}
-
 
             {/* RECOMMENDATION PANEL */}
 
@@ -1196,13 +1342,11 @@ export default function AIAnalysisPage() {
                     🤖
                   </div>
 
-
                   <div>
 
                     <h3 className="text-2xl font-bold text-gray-900">
                       AI Recommendation
                     </h3>
-
 
                     <p className="text-sm text-gray-600">
                       Combined interpretation of the AI outputs
@@ -1214,7 +1358,6 @@ export default function AIAnalysisPage() {
 
               </div>
 
-
               <div className="p-6 sm:p-8">
 
                 {/* STATUS */}
@@ -1224,7 +1367,6 @@ export default function AIAnalysisPage() {
                   <p className="text-sm font-medium text-gray-500">
                     Overall Status
                   </p>
-
 
                   <span
                     className={`mt-2 inline-flex rounded-full px-4 py-2 text-sm font-bold ${
@@ -1244,7 +1386,6 @@ export default function AIAnalysisPage() {
 
                 </div>
 
-
                 {/* ALERTS */}
 
                 {result.recommendation.alerts.length >
@@ -1258,13 +1399,11 @@ export default function AIAnalysisPage() {
                         ⚠️
                       </span>
 
-
                       <h4 className="text-lg font-bold text-red-700">
                         Alerts
                       </h4>
 
                     </div>
-
 
                     <ul className="mt-4 space-y-3">
 
@@ -1283,7 +1422,6 @@ export default function AIAnalysisPage() {
                               ●
                             </span>
 
-
                             <span>
                               {alert}
                             </span>
@@ -1299,7 +1437,6 @@ export default function AIAnalysisPage() {
 
                 )}
 
-
                 {/* RECOMMENDATIONS */}
 
                 {result.recommendation.recommendations.length >
@@ -1313,13 +1450,11 @@ export default function AIAnalysisPage() {
                         💡
                       </span>
 
-
                       <h4 className="text-lg font-bold text-green-700">
                         Recommendations
                       </h4>
 
                     </div>
-
 
                     <ul className="mt-4 space-y-3">
 
@@ -1337,7 +1472,6 @@ export default function AIAnalysisPage() {
                             <span className="mt-1 text-green-600">
                               ✓
                             </span>
-
 
                             <span>
                               {recommendation}
@@ -1358,7 +1492,6 @@ export default function AIAnalysisPage() {
 
             </div>
 
-
             {/* DISCLAIMER */}
 
             <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4 text-center text-xs leading-5 text-gray-500">
@@ -1377,7 +1510,6 @@ export default function AIAnalysisPage() {
     </main>
   );
 }
-
 
 // =========================================================
 // SECTION HEADER
@@ -1399,13 +1531,11 @@ function SectionHeader({
         {icon}
       </div>
 
-
       <div>
 
         <h3 className="text-lg font-bold text-gray-900">
           {title}
         </h3>
-
 
         <p className="mt-1 text-sm text-gray-500">
           {description}
@@ -1416,7 +1546,6 @@ function SectionHeader({
     </div>
   );
 }
-
 
 // =========================================================
 // INPUT FIELD
@@ -1429,6 +1558,8 @@ function InputField({
   onChange,
   type = "text",
   step,
+  min,
+  max,
 }: {
   label: string;
   name: string;
@@ -1438,6 +1569,8 @@ function InputField({
   ) => void;
   type?: string;
   step?: string;
+  min?: string;
+  max?: string;
 }) {
   return (
     <div>
@@ -1449,7 +1582,6 @@ function InputField({
         {label}
       </label>
 
-
       <input
         id={name}
         type={type}
@@ -1457,13 +1589,14 @@ function InputField({
         value={value}
         onChange={onChange}
         step={step}
+        min={min}
+        max={max}
         className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-100"
       />
 
     </div>
   );
 }
-
 
 // =========================================================
 // SELECT FIELD
@@ -1494,7 +1627,6 @@ function SelectField({
         {label}
       </label>
 
-
       <select
         id={name}
         name={name}
@@ -1520,7 +1652,6 @@ function SelectField({
   );
 }
 
-
 // =========================================================
 // WEATHER INPUT
 // =========================================================
@@ -1531,6 +1662,8 @@ function WeatherInput({
   value,
   onChange,
   loading,
+  min,
+  max,
 }: {
   label: string;
   name: string;
@@ -1539,6 +1672,8 @@ function WeatherInput({
     e: React.ChangeEvent<HTMLInputElement>
   ) => void;
   loading: boolean;
+  min?: string;
+  max?: string;
 }) {
   return (
     <div>
@@ -1552,7 +1687,6 @@ function WeatherInput({
           {label}
         </label>
 
-
         <span className="text-xs font-semibold text-green-600">
           {loading
             ? "Updating..."
@@ -1561,7 +1695,6 @@ function WeatherInput({
 
       </div>
 
-
       <input
         id={name}
         type="number"
@@ -1569,13 +1702,14 @@ function WeatherInput({
         value={value}
         onChange={onChange}
         step="0.1"
+        min={min}
+        max={max}
         className="w-full rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-gray-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-100"
       />
 
     </div>
   );
 }
-
 
 // =========================================================
 // RESULT CARD
@@ -1610,7 +1744,6 @@ function ResultCard({
           {icon}
         </div>
 
-
         <span
           className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${levelStyle}`}
         >
@@ -1619,16 +1752,13 @@ function ResultCard({
 
       </div>
 
-
       <p className="mt-5 text-sm font-semibold text-gray-500">
         {title}
       </p>
 
-
       <h3 className="mt-2 break-words text-2xl font-extrabold capitalize text-gray-900">
         {value}
       </h3>
-
 
       <p className="mt-3 text-sm text-gray-500">
         {details}
@@ -1637,7 +1767,6 @@ function ResultCard({
     </div>
   );
 }
-
 
 // =========================================================
 // YIELD RESULT CARD
@@ -1659,23 +1788,19 @@ function YieldResultCard({
           📊
         </div>
 
-
         <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase text-blue-700">
           Prediction
         </span>
 
       </div>
 
-
       <p className="mt-5 text-sm font-semibold text-gray-500">
         Yield Prediction
       </p>
 
-
       <h3 className="mt-2 text-3xl font-extrabold text-gray-900">
         {value}
       </h3>
-
 
       <p className="mt-3 text-sm text-gray-500">
         {unit}
