@@ -37,17 +37,14 @@ type AnalysisResult = {
 type WeatherData = {
   temperature: number | null;
   humidity: number | null;
-  rainfall: number | null;
+  current_precipitation: number | null;
+  recent_precipitation: number | null;
   temperature_unit: string;
   humidity_unit: string;
-  rainfall_unit: string;
+  precipitation_unit: string;
 };
 
 export default function AIAnalysisPage() {
-  // ==========================================
-  // FORM STATE
-  // ==========================================
-
   const [form, setForm] = useState({
     N: "90",
     P: "40",
@@ -56,6 +53,9 @@ export default function AIAnalysisPage() {
     temperature: "25",
     humidity: "80",
     ph: "6.5",
+
+    // IMPORTANT:
+    // This remains separate from live weather precipitation.
     rainfall: "200",
 
     year_start: "2024",
@@ -71,10 +71,6 @@ export default function AIAnalysisPage() {
     previous_yield: "2.1",
   });
 
-  // ==========================================
-  // WEATHER STATE
-  // ==========================================
-
   const [weather, setWeather] =
     useState<WeatherData | null>(null);
 
@@ -84,16 +80,8 @@ export default function AIAnalysisPage() {
   const [weatherError, setWeatherError] =
     useState("");
 
-  // ==========================================
-  // FILE STATE
-  // ==========================================
-
   const [file, setFile] =
     useState<File | null>(null);
-
-  // ==========================================
-  // AI RESULT STATE
-  // ==========================================
 
   const [result, setResult] =
     useState<AnalysisResult | null>(null);
@@ -131,9 +119,11 @@ export default function AIAnalysisPage() {
 
       if (!state || !district) {
         setWeather(null);
+
         setWeatherError(
           "Please select both state and district."
         );
+
         return;
       }
 
@@ -194,8 +184,18 @@ export default function AIAnalysisPage() {
         setWeather(data);
 
         // ======================================
-        // STEP 4: UPDATE WEATHER VALUES
+        // STEP 4: UPDATE ONLY CURRENT WEATHER
         // ======================================
+        //
+        // Temperature and humidity come from
+        // live weather.
+        //
+        // rainfall is intentionally NOT replaced
+        // by current precipitation.
+        //
+        // The crop model's rainfall feature
+        // remains manually supplied.
+        //
 
         setForm((previous) => ({
           ...previous,
@@ -211,9 +211,7 @@ export default function AIAnalysisPage() {
               : previous.humidity,
 
           rainfall:
-            data.rainfall !== null
-              ? String(data.rainfall)
-              : previous.rainfall,
+            previous.rainfall,
         }));
       } catch (err) {
         setWeather(null);
@@ -320,6 +318,7 @@ export default function AIAnalysisPage() {
       setError(
         "Please upload a plant leaf image."
       );
+
       return;
     }
 
@@ -422,17 +421,13 @@ export default function AIAnalysisPage() {
 
       <div className="mx-auto max-w-7xl">
 
-        {/* =====================================
-            HEADER
-        ====================================== */}
+        {/* HEADER */}
 
         <div className="mb-10 text-center">
 
           <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">
 
-            <span>
-              🌱
-            </span>
+            <span>🌱</span>
 
             <span>
               AI-Powered Agriculture
@@ -453,9 +448,7 @@ export default function AIAnalysisPage() {
         </div>
 
 
-        {/* =====================================
-            FORM
-        ====================================== */}
+        {/* FORM */}
 
         <form
           onSubmit={handleSubmit}
@@ -480,16 +473,13 @@ export default function AIAnalysisPage() {
 
           <div className="p-6 sm:p-8">
 
-            {/* =================================
-                SOIL & WEATHER
-            ================================== */}
+            {/* SOIL & WEATHER */}
 
             <SectionHeader
               icon="🌱"
               title="Soil & Weather Conditions"
-              description="Soil values are entered manually. Weather data is automatically retrieved using the selected state and district."
+              description="Soil values are entered manually. Temperature and humidity are automatically retrieved using the selected state and district."
             />
-
 
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
 
@@ -542,12 +532,13 @@ export default function AIAnalysisPage() {
                 step="0.1"
               />
 
-              <WeatherInput
+              <InputField
                 label="Rainfall (mm)"
                 name="rainfall"
                 value={form.rainfall}
                 onChange={handleChange}
-                loading={weatherLoading}
+                type="number"
+                step="0.1"
               />
 
             </div>
@@ -572,6 +563,15 @@ export default function AIAnalysisPage() {
                       {form.state_name}
                     </p>
 
+                    {weather.recent_precipitation !==
+                      null && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Recent precipitation:{" "}
+                        {weather.recent_precipitation}{" "}
+                        {weather.precipitation_unit}
+                      </p>
+                    )}
+
                   </div>
                 )}
 
@@ -590,19 +590,15 @@ export default function AIAnalysisPage() {
                 disabled={weatherLoading}
                 className="w-fit rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
-
                 {weatherLoading
                   ? "Updating Weather..."
                   : "↻ Refresh Weather"}
-
               </button>
 
             </div>
 
 
-            {/* =================================
-                LOCATION & CROP
-            ================================== */}
+            {/* LOCATION & CROP */}
 
             <div className="mt-10">
 
@@ -611,7 +607,6 @@ export default function AIAnalysisPage() {
                 title="Location & Crop Information"
                 description="Select the agricultural location and provide crop details."
               />
-
 
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
 
@@ -622,9 +617,6 @@ export default function AIAnalysisPage() {
                   onChange={handleChange}
                   type="number"
                 />
-
-
-                {/* STATE DROPDOWN */}
 
                 <SelectField
                   label="State"
@@ -637,9 +629,6 @@ export default function AIAnalysisPage() {
                   )}
                 />
 
-
-                {/* DISTRICT DROPDOWN */}
-
                 <SelectField
                   label="District"
                   name="district_name"
@@ -648,7 +637,6 @@ export default function AIAnalysisPage() {
                   options={districts}
                 />
 
-
                 <InputField
                   label="Crop"
                   name="crop_name"
@@ -656,14 +644,12 @@ export default function AIAnalysisPage() {
                   onChange={handleChange}
                 />
 
-
                 <InputField
                   label="Crop Type"
                   name="crop_type"
                   value={form.crop_type}
                   onChange={handleChange}
                 />
-
 
                 <InputField
                   label="Season"
@@ -677,9 +663,7 @@ export default function AIAnalysisPage() {
             </div>
 
 
-            {/* =================================
-                YIELD
-            ================================== */}
+            {/* YIELD */}
 
             <div className="mt-10">
 
@@ -688,7 +672,6 @@ export default function AIAnalysisPage() {
                 title="Yield Information"
                 description="Historical information used by the yield prediction model."
               />
-
 
               <div className="grid gap-5 sm:grid-cols-2">
 
@@ -715,9 +698,7 @@ export default function AIAnalysisPage() {
             </div>
 
 
-            {/* =================================
-                DISEASE IMAGE
-            ================================== */}
+            {/* DISEASE IMAGE */}
 
             <div className="mt-10">
 
@@ -726,7 +707,6 @@ export default function AIAnalysisPage() {
                 title="Plant Disease Detection"
                 description="Upload a clear image of the plant leaf."
               />
-
 
               <label
                 htmlFor="plant-image"
@@ -737,23 +717,19 @@ export default function AIAnalysisPage() {
                   📷
                 </div>
 
-
                 <p className="text-lg font-semibold text-gray-800">
                   {file
                     ? "Change plant image"
                     : "Upload plant leaf image"}
                 </p>
 
-
                 <p className="mt-2 text-sm text-gray-500">
                   PNG, JPG or JPEG images are supported
                 </p>
 
-
                 <span className="mt-5 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white transition group-hover:bg-green-700">
                   Choose Image
                 </span>
-
 
                 <input
                   id="plant-image"
@@ -791,9 +767,7 @@ export default function AIAnalysisPage() {
             </div>
 
 
-            {/* =================================
-                ERROR
-            ================================== */}
+            {/* ERROR */}
 
             {error && (
               <div className="mt-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
@@ -818,9 +792,7 @@ export default function AIAnalysisPage() {
             )}
 
 
-            {/* =================================
-                SUBMIT
-            ================================== */}
+            {/* SUBMIT */}
 
             <button
               type="submit"
@@ -851,9 +823,7 @@ export default function AIAnalysisPage() {
         </form>
 
 
-        {/* =====================================
-            RESULTS
-        ====================================== */}
+        {/* RESULTS */}
 
         {result && (
           <div className="mt-10">
@@ -877,7 +847,6 @@ export default function AIAnalysisPage() {
                 </p>
 
               </div>
-
 
               <div
                 className={`inline-flex w-fit items-center gap-2 rounded-full px-4 py-2 text-sm font-bold ${
@@ -920,7 +889,6 @@ export default function AIAnalysisPage() {
                 }
               />
 
-
               <ResultCard
                 icon="🦠"
                 title="Plant Disease"
@@ -932,7 +900,6 @@ export default function AIAnalysisPage() {
                   result.disease.confidence_level
                 }
               />
-
 
               <YieldResultCard
                 value={
@@ -1030,7 +997,6 @@ export default function AIAnalysisPage() {
 
                     </div>
 
-
                     <ul className="mt-4 space-y-3">
 
                       {result.recommendation.alerts.map(
@@ -1082,7 +1048,6 @@ export default function AIAnalysisPage() {
                       </h4>
 
                     </div>
-
 
                     <ul className="mt-4 space-y-3">
 

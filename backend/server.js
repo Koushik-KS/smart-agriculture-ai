@@ -33,16 +33,87 @@ app.get("/", (req, res) => {
 
 
 // ===============================
+// Location Geocoding
+// ===============================
+
+app.get("/api/geocode", async (req, res) => {
+  try {
+    const { state, district } = req.query;
+
+    if (!state || !district) {
+      return res.status(400).json({
+        message: "State and district are required.",
+      });
+    }
+
+    const locationQuery =
+      `${district}, ${state}, India`;
+
+    const geocodeUrl =
+      `https://geocoding-api.open-meteo.com/v1/search` +
+      `?name=${encodeURIComponent(locationQuery)}` +
+      `&count=5` +
+      `&language=en` +
+      `&format=json`;
+
+    const response =
+      await fetch(geocodeUrl);
+
+    if (!response.ok) {
+      throw new Error(
+        `Geocoding API returned ${response.status}`
+      );
+    }
+
+    const data =
+      await response.json();
+
+    if (
+      !data.results ||
+      data.results.length === 0
+    ) {
+      return res.status(404).json({
+        message: "Location not found.",
+      });
+    }
+
+    const location =
+      data.results[0];
+
+    res.json({
+      latitude: location.latitude,
+      longitude: location.longitude,
+      name: location.name,
+      country: location.country,
+      admin1: location.admin1 || null,
+    });
+
+  } catch (error) {
+    console.error(
+      "Geocoding API error:",
+      error.message
+    );
+
+    res.status(500).json({
+      message: "Failed to find location.",
+    });
+  }
+});
+
+
+// ===============================
 // Weather Information
 // ===============================
 
 app.get("/api/weather", async (req, res) => {
   try {
-    const { latitude, longitude } = req.query;
+    const { latitude, longitude } =
+      req.query;
 
     if (!latitude || !longitude) {
       return res.status(400).json({
-        message: "Latitude and longitude are required.",
+        message:
+          "Latitude and longitude are required.",
       });
     }
 
@@ -51,9 +122,13 @@ app.get("/api/weather", async (req, res) => {
       `?latitude=${encodeURIComponent(latitude)}` +
       `&longitude=${encodeURIComponent(longitude)}` +
       `&current=temperature_2m,relative_humidity_2m,precipitation` +
+      `&hourly=precipitation` +
+      `&past_days=7` +
+      `&forecast_days=1` +
       `&timezone=auto`;
 
-    const response = await fetch(weatherUrl);
+    const response =
+      await fetch(weatherUrl);
 
     if (!response.ok) {
       throw new Error(
@@ -61,26 +136,88 @@ app.get("/api/weather", async (req, res) => {
       );
     }
 
-    const weather = await response.json();
+    const weather =
+      await response.json();
+
+
+    // --------------------------------
+    // Current weather
+    // --------------------------------
+
+    const currentTemperature =
+      weather.current?.temperature_2m ??
+      null;
+
+    const currentHumidity =
+      weather.current
+        ?.relative_humidity_2m ??
+      null;
+
+    const currentPrecipitation =
+      weather.current?.precipitation ??
+      null;
+
+
+    // --------------------------------
+    // Recent precipitation
+    // --------------------------------
+
+    const hourlyPrecipitation =
+      weather.hourly?.precipitation || [];
+
+    const recentPrecipitation =
+      hourlyPrecipitation
+        .filter(
+          (value) =>
+            typeof value === "number" &&
+            Number.isFinite(value)
+        )
+        .reduce(
+          (total, value) =>
+            total + value,
+          0
+        );
+
+
+    // --------------------------------
+    // Response
+    // --------------------------------
 
     res.json({
+
       temperature:
-        weather.current?.temperature_2m ?? null,
+        currentTemperature,
 
       humidity:
-        weather.current?.relative_humidity_2m ?? null,
+        currentHumidity,
 
-      rainfall:
-        weather.current?.precipitation ?? null,
+      current_precipitation:
+        currentPrecipitation,
+
+      recent_precipitation:
+        Number(
+          recentPrecipitation.toFixed(2)
+        ),
 
       temperature_unit:
-        weather.current_units?.temperature_2m ?? "°C",
+        weather.current_units
+          ?.temperature_2m ||
+        "°C",
 
       humidity_unit:
-        weather.current_units?.relative_humidity_2m ?? "%",
+        weather.current_units
+          ?.relative_humidity_2m ||
+        "%",
 
-      rainfall_unit:
-        weather.current_units?.precipitation ?? "mm",
+      precipitation_unit:
+        weather.current_units
+          ?.precipitation ||
+        "mm",
+
+      // IMPORTANT:
+      // This is intentionally kept separate
+      // from live weather precipitation.
+      rainfall: null,
     });
 
   } catch (error) {
@@ -102,27 +239,35 @@ app.get("/api/weather", async (req, res) => {
 // Crop Recommendation
 // ===============================
 
-app.post("/api/crop-recommendation", async (req, res) => {
-  try {
-    const response = await axios.post(
-      `${CROP_AI_URL}/predict`,
-      req.body
-    );
+app.post(
+  "/api/crop-recommendation",
+  async (req, res) => {
 
-    res.json(response.data);
+    try {
 
-  } catch (error) {
+      const response =
+        await axios.post(
+          `${CROP_AI_URL}/predict`,
+          req.body
+        );
 
-    console.error(
-      "Crop AI service error:",
-      error.response?.data || error.message
-    );
+      res.json(response.data);
 
-    res.status(500).json({
-      message: "Failed to get crop recommendation",
-    });
+    } catch (error) {
+
+      console.error(
+        "Crop AI service error:",
+        error.response?.data ||
+        error.message
+      );
+
+      res.status(500).json({
+        message:
+          "Failed to get crop recommendation",
+      });
+    }
   }
-});
+);
 
 
 // ===============================
@@ -138,32 +283,38 @@ app.post(
 
       if (!req.file) {
         return res.status(400).json({
-          message: "Please upload a plant leaf image.",
+          message:
+            "Please upload a plant leaf image.",
         });
       }
 
-      const formData = new FormData();
+      const formData =
+        new FormData();
 
       formData.append(
         "file",
         req.file.buffer,
         {
-          filename: req.file.originalname,
-          contentType: req.file.mimetype,
+          filename:
+            req.file.originalname,
+
+          contentType:
+            req.file.mimetype,
         }
       );
 
-      const response = await axios.post(
-        `${DISEASE_AI_URL}/predict`,
-        formData,
-        {
-          headers: {
-            ...formData.getHeaders(),
-          },
+      const response =
+        await axios.post(
+          `${DISEASE_AI_URL}/predict`,
+          formData,
+          {
+            headers: {
+              ...formData.getHeaders(),
+            },
 
-          maxBodyLength: Infinity,
-        }
-      );
+            maxBodyLength: Infinity,
+          }
+        );
 
       res.json(response.data);
 
@@ -171,11 +322,13 @@ app.post(
 
       console.error(
         "Plant Disease AI service error:",
-        error.response?.data || error.message
+        error.response?.data ||
+        error.message
       );
 
       res.status(500).json({
-        message: "Failed to detect plant disease",
+        message:
+          "Failed to detect plant disease",
       });
     }
   }
@@ -186,58 +339,70 @@ app.post(
 // Yield Prediction
 // ===============================
 
-app.post("/api/yield-prediction", async (req, res) => {
+app.post(
+  "/api/yield-prediction",
+  async (req, res) => {
 
-  try {
+    try {
 
-    const response = await axios.post(
-      `${YIELD_AI_URL}/predict`,
-      req.body
-    );
+      const response =
+        await axios.post(
+          `${YIELD_AI_URL}/predict`,
+          req.body
+        );
 
-    res.json(response.data);
+      res.json(response.data);
 
-  } catch (error) {
+    } catch (error) {
 
-    console.error(
-      "Yield AI service error:",
-      error.response?.data || error.message
-    );
+      console.error(
+        "Yield AI service error:",
+        error.response?.data ||
+        error.message
+      );
 
-    res.status(500).json({
-      message: "Failed to predict crop yield",
-    });
+      res.status(500).json({
+        message:
+          "Failed to predict crop yield",
+      });
+    }
   }
-});
+);
 
 
 // ===============================
 // Recommendation Engine
 // ===============================
 
-app.post("/api/recommendation", async (req, res) => {
+app.post(
+  "/api/recommendation",
+  async (req, res) => {
 
-  try {
+    try {
 
-    const response = await axios.post(
-      `${RECOMMENDATION_AI_URL}/recommend`,
-      req.body
-    );
+      const response =
+        await axios.post(
+          `${RECOMMENDATION_AI_URL}/recommend`,
+          req.body
+        );
 
-    res.json(response.data);
+      res.json(response.data);
 
-  } catch (error) {
+    } catch (error) {
 
-    console.error(
-      "Recommendation AI service error:",
-      error.response?.data || error.message
-    );
+      console.error(
+        "Recommendation AI service error:",
+        error.response?.data ||
+        error.message
+      );
 
-    res.status(500).json({
-      message: "Failed to generate agricultural recommendation",
-    });
+      res.status(500).json({
+        message:
+          "Failed to generate agricultural recommendation",
+      });
+    }
   }
-});
+);
 
 
 // ===============================
@@ -258,7 +423,8 @@ app.post(
       if (!req.file) {
 
         return res.status(400).json({
-          message: "Please upload a plant leaf image.",
+          message:
+            "Please upload a plant leaf image.",
         });
 
       }
@@ -270,11 +436,14 @@ app.post(
 
       const cropInput = {
 
-        N: Number(req.body.N),
+        N:
+          Number(req.body.N),
 
-        P: Number(req.body.P),
+        P:
+          Number(req.body.P),
 
-        K: Number(req.body.K),
+        K:
+          Number(req.body.K),
 
         temperature:
           Number(req.body.temperature),
@@ -318,7 +487,9 @@ app.post(
           Number(req.body.area),
 
         previous_yield:
-          Number(req.body.previous_yield),
+          Number(
+            req.body.previous_yield
+          ),
       };
 
 
@@ -367,7 +538,8 @@ app.post(
               ...diseaseFormData.getHeaders(),
             },
 
-            maxBodyLength: Infinity,
+            maxBodyLength:
+              Infinity,
           }
         ),
 
@@ -400,28 +572,21 @@ app.post(
 
       const recommendationInput = {
 
-        // AI crop recommendation
         recommended_crop:
           cropResult.recommended_crop,
 
-        // AI crop confidence
         crop_confidence:
           cropResult.confidence,
 
-        // User-selected crop
-        // Used for crop-disease consistency check
         selected_crop:
           req.body.crop_name,
 
-        // Disease prediction
         predicted_disease:
           diseaseResult.predicted_disease,
 
-        // Disease confidence
         disease_confidence:
           diseaseResult.confidence,
 
-        // Yield prediction
         predicted_yield:
           yieldResult.predicted_yield,
       };
@@ -478,76 +643,18 @@ app.post(
   }
 );
 
-// ===============================
-// Location Geocoding
-// ===============================
-
-app.get("/api/geocode", async (req, res) => {
-  try {
-    const { state, district } = req.query;
-
-    if (!state || !district) {
-      return res.status(400).json({
-        message: "State and district are required.",
-      });
-    }
-
-    const locationQuery = `${district}, ${state}, India`;
-
-    const geocodeUrl =
-      `https://geocoding-api.open-meteo.com/v1/search` +
-      `?name=${encodeURIComponent(locationQuery)}` +
-      `&count=5` +
-      `&language=en` +
-      `&format=json`;
-
-    const response = await fetch(geocodeUrl);
-
-    if (!response.ok) {
-      throw new Error(
-        `Geocoding API returned ${response.status}`
-      );
-    }
-
-    const data = await response.json();
-
-    if (!data.results || data.results.length === 0) {
-      return res.status(404).json({
-        message: "Location not found.",
-      });
-    }
-
-    const result = data.results[0];
-
-    res.json({
-      latitude: result.latitude,
-      longitude: result.longitude,
-      name: result.name,
-      country: result.country,
-      admin1: result.admin1 || null,
-    });
-
-  } catch (error) {
-
-    console.error(
-      "Geocoding API error:",
-      error.message
-    );
-
-    res.status(500).json({
-      message: "Failed to find location.",
-    });
-  }
-});
 
 // ===============================
 // Start Server
 // ===============================
 
-app.listen(PORT, () => {
+app.listen(
+  PORT,
+  () => {
 
-  console.log(
-    `Backend server running on http://localhost:${PORT}`
-  );
+    console.log(
+      `Backend server running on http://localhost:${PORT}`
+    );
 
-});
+  }
+);
