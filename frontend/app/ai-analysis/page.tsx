@@ -8,12 +8,18 @@ import {
 
 import { indiaLocations } from "../../data/indiaLocations";
 
+type TopCropRecommendation = {
+  crop: string;
+  confidence: number;
+};
+
 type AnalysisResult = {
   crop: {
     recommended_crop: string;
     confidence: number;
     confidence_level: string;
     message: string;
+    top_recommendations?: TopCropRecommendation[];
   };
 
   disease: {
@@ -378,8 +384,8 @@ export default function AIAnalysisPage() {
       [name]: value,
     }));
 
-    // Clear previous result when important
-    // agricultural inputs are changed.
+    // Clear old result when important
+    // agricultural inputs change.
 
     if (
       name === "N" ||
@@ -445,9 +451,7 @@ export default function AIAnalysisPage() {
 
     setError("");
 
-    // ========================================
     // REQUIRED IMAGE
-    // ========================================
 
     if (!file) {
       setError(
@@ -457,9 +461,7 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // ========================================
     // PREVIOUS YEAR YIELD
-    // ========================================
 
     if (!previousYield) {
       setError(
@@ -469,9 +471,7 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // ========================================
     // NUMERIC VALIDATION
-    // ========================================
 
     const nitrogen =
       Number(form.N);
@@ -500,9 +500,7 @@ export default function AIAnalysisPage() {
     const area =
       Number(form.area);
 
-    // ========================================
     // CROP MODEL RANGE VALIDATION
-    // ========================================
 
     if (
       !Number.isFinite(nitrogen) ||
@@ -564,9 +562,7 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // ========================================
     // TEMPERATURE VALIDATION
-    // ========================================
 
     if (
       !Number.isFinite(temperature) ||
@@ -580,9 +576,7 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // ========================================
     // HUMIDITY VALIDATION
-    // ========================================
 
     if (
       !Number.isFinite(humidity) ||
@@ -596,9 +590,7 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // ========================================
     // YEAR VALIDATION
-    // ========================================
 
     if (
       !Number.isInteger(year) ||
@@ -612,9 +604,7 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // ========================================
     // AREA VALIDATION
-    // ========================================
 
     if (
       !Number.isFinite(area) ||
@@ -627,9 +617,7 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    // ========================================
     // START ANALYSIS
-    // ========================================
 
     setLoading(true);
     setResult(null);
@@ -743,15 +731,11 @@ export default function AIAnalysisPage() {
         <div className="mb-10 text-center">
 
           <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">
-
-            <span>
-              🌱
-            </span>
+            <span>🌱</span>
 
             <span>
               AI-Powered Agriculture
             </span>
-
           </div>
 
           <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
@@ -1288,6 +1272,123 @@ export default function AIAnalysisPage() {
               />
 
             </div>
+
+            {/* TOP 3 CROP RECOMMENDATIONS */}
+
+            {result.crop.top_recommendations &&
+              result.crop.top_recommendations.length >
+                0 && (
+              <div className="mt-6 overflow-hidden rounded-3xl border border-green-200 bg-white shadow-lg">
+
+                <div className="border-b border-green-100 bg-green-50 px-6 py-5 sm:px-8">
+
+                  <div className="flex items-center gap-3">
+
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">
+                      🌾
+                    </div>
+
+                    <div>
+
+                      <h3 className="text-2xl font-bold text-gray-900">
+                        Top Crop Recommendations
+                      </h3>
+
+                      <p className="text-sm text-gray-600">
+                        AI-ranked crop predictions based on the supplied soil and weather conditions.
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+                <div className="p-6 sm:p-8">
+
+                  <div className="space-y-4">
+
+                    {result.crop.top_recommendations.map(
+                      (
+                        recommendation,
+                        index
+                      ) => {
+
+                        const isTop =
+                          index === 0;
+
+                        return (
+                          <div
+                            key={`${recommendation.crop}-${index}`}
+                            className={`rounded-2xl border p-4 ${
+                              isTop
+                                ? "border-green-300 bg-green-50"
+                                : "border-gray-200 bg-gray-50"
+                            }`}
+                          >
+
+                            <div className="flex items-center gap-4">
+
+                              <div
+                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${
+                                  isTop
+                                    ? "bg-green-600 text-white"
+                                    : "bg-gray-200 text-gray-700"
+                                }`}
+                              >
+                                {index + 1}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+
+                                <div className="flex items-center justify-between gap-4">
+
+                                  <p className="text-lg font-bold capitalize text-gray-900">
+                                    {recommendation.crop}
+                                  </p>
+
+                                  <p className="shrink-0 text-sm font-bold text-green-700">
+                                    {recommendation.confidence}%
+                                  </p>
+
+                                </div>
+
+                                <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200">
+
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      isTop
+                                        ? "bg-green-600"
+                                        : "bg-green-400"
+                                    }`}
+                                    style={{
+                                      width: `${Math.min(
+                                        Math.max(
+                                          recommendation.confidence,
+                                          0
+                                        ),
+                                        100
+                                      )}%`,
+                                    }}
+                                  />
+
+                                </div>
+
+                              </div>
+
+                            </div>
+
+                          </div>
+                        );
+                      }
+                    )}
+
+                  </div>
+
+                </div>
+
+              </div>
+            )}
 
             {/* AUTOMATIC YIELD INFORMATION */}
 
