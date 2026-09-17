@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import { indiaLocations } from "../../data/indiaLocations";
+import { cropInformation } from "../../data/cropInformation";
 
 type TopCropRecommendation = {
   crop: string;
@@ -131,6 +132,23 @@ export default function AIAnalysisPage() {
 
   const districts =
     selectedState?.districts || [];
+
+  // ==========================================
+  // CROP INFORMATION
+  // ==========================================
+
+  const getCropInformation = (
+    cropName: string
+  ) => {
+    const normalizedCrop =
+      cropName.trim().toLowerCase();
+
+    return cropInformation.find(
+      (crop) =>
+        crop.crop.trim().toLowerCase() ===
+        normalizedCrop
+    );
+  };
 
   // ==========================================
   // FETCH WEATHER
@@ -731,11 +749,13 @@ export default function AIAnalysisPage() {
         <div className="mb-10 text-center">
 
           <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">
+
             <span>🌱</span>
 
             <span>
               AI-Powered Agriculture
             </span>
+
           </div>
 
           <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
@@ -1317,6 +1337,11 @@ export default function AIAnalysisPage() {
                         const isTop =
                           index === 0;
 
+                        const cropInfo =
+                          getCropInformation(
+                            recommendation.crop
+                          );
+
                         return (
                           <div
                             key={`${recommendation.crop}-${index}`}
@@ -1373,6 +1398,65 @@ export default function AIAnalysisPage() {
                                   />
 
                                 </div>
+
+                                {cropInfo && (
+                                  <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+
+                                    <p className="text-sm leading-6 text-gray-600">
+                                      {cropInfo.description}
+                                    </p>
+
+                                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+
+                                      <div className="rounded-lg bg-gray-50 p-3">
+                                        <p className="text-xs font-semibold text-gray-500">
+                                          Suitable Soil pH
+                                        </p>
+
+                                        <p className="mt-1 text-sm font-bold text-gray-900">
+                                          {cropInfo.suitableSoilPh.min}
+                                          {" – "}
+                                          {cropInfo.suitableSoilPh.max}
+                                        </p>
+                                      </div>
+
+                                      <div className="rounded-lg bg-gray-50 p-3">
+                                        <p className="text-xs font-semibold text-gray-500">
+                                          Suitable Temperature
+                                        </p>
+
+                                        <p className="mt-1 text-sm font-bold text-gray-900">
+                                          {cropInfo.suitableTemperature.min}
+                                          {" – "}
+                                          {cropInfo.suitableTemperature.max}
+                                          °C
+                                        </p>
+                                      </div>
+
+                                      <div className="rounded-lg bg-gray-50 p-3">
+                                        <p className="text-xs font-semibold text-gray-500">
+                                          Water Requirement
+                                        </p>
+
+                                        <p className="mt-1 text-sm font-bold text-gray-900">
+                                          {cropInfo.waterRequirement}
+                                        </p>
+                                      </div>
+
+                                      <div className="rounded-lg bg-gray-50 p-3">
+                                        <p className="text-xs font-semibold text-gray-500">
+                                          Drainage
+                                        </p>
+
+                                        <p className="mt-1 text-sm font-bold text-gray-900">
+                                          {cropInfo.drainage}
+                                        </p>
+                                      </div>
+
+                                    </div>
+
+                                  </div>
+                                )}
 
                               </div>
 
