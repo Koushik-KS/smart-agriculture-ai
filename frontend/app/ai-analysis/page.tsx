@@ -6,6 +6,8 @@ import {
   useState,
 } from "react";
 
+import { indiaLocations } from "../../data/indiaLocations";
+
 type AnalysisResult = {
   crop: {
     recommended_crop: string;
@@ -42,23 +44,36 @@ type WeatherData = {
 };
 
 export default function AIAnalysisPage() {
+  // ==========================================
+  // FORM STATE
+  // ==========================================
+
   const [form, setForm] = useState({
     N: "90",
     P: "40",
     K: "40",
+
     temperature: "25",
     humidity: "80",
     ph: "6.5",
     rainfall: "200",
+
     year_start: "2024",
+
     state_name: "Karnataka",
     district_name: "Haveri",
+
     crop_name: "Rice",
     crop_type: "Cereals",
     season: "Kharif",
+
     area: "100",
     previous_yield: "2.1",
   });
+
+  // ==========================================
+  // WEATHER STATE
+  // ==========================================
 
   const [weather, setWeather] =
     useState<WeatherData | null>(null);
@@ -69,8 +84,16 @@ export default function AIAnalysisPage() {
   const [weatherError, setWeatherError] =
     useState("");
 
+  // ==========================================
+  // FILE STATE
+  // ==========================================
+
   const [file, setFile] =
     useState<File | null>(null);
+
+  // ==========================================
+  // AI RESULT STATE
+  // ==========================================
 
   const [result, setResult] =
     useState<AnalysisResult | null>(null);
@@ -82,14 +105,24 @@ export default function AIAnalysisPage() {
     useState("");
 
   // ==========================================
-  // Fetch Weather Using State + District
+  // LOCATION DATA
   // ==========================================
 
-  const fetchWeather = useCallback(async () => {
-    setWeatherLoading(true);
-    setWeatherError("");
+  const selectedState =
+    indiaLocations.find(
+      (location) =>
+        location.state === form.state_name
+    );
 
-    try {
+  const districts =
+    selectedState?.districts || [];
+
+  // ==========================================
+  // FETCH WEATHER
+  // ==========================================
+
+  const fetchWeather = useCallback(
+    async () => {
       const state =
         form.state_name.trim();
 
@@ -97,108 +130,111 @@ export default function AIAnalysisPage() {
         form.district_name.trim();
 
       if (!state || !district) {
-        throw new Error(
-          "Please enter both state and district."
+        setWeather(null);
+        setWeatherError(
+          "Please select both state and district."
         );
+        return;
       }
 
-      // ======================================
-      // STEP 1: Geocode location
-      // ======================================
+      setWeatherLoading(true);
+      setWeatherError("");
 
-      const geocodeResponse =
-        await fetch(
-          `http://localhost:5000/api/geocode?state=${encodeURIComponent(
-            state
-          )}&district=${encodeURIComponent(
-            district
-          )}`
+      try {
+        // ======================================
+        // STEP 1: GEOCODING
+        // ======================================
+
+        const geocodeResponse =
+          await fetch(
+            `http://localhost:5000/api/geocode?state=${encodeURIComponent(
+              state
+            )}&district=${encodeURIComponent(
+              district
+            )}`
+          );
+
+        const location =
+          await geocodeResponse.json();
+
+        if (!geocodeResponse.ok) {
+          throw new Error(
+            location.message ||
+              "Location not found."
+          );
+        }
+
+        // ======================================
+        // STEP 2: WEATHER
+        // ======================================
+
+        const weatherResponse =
+          await fetch(
+            `http://localhost:5000/api/weather?latitude=${encodeURIComponent(
+              location.latitude
+            )}&longitude=${encodeURIComponent(
+              location.longitude
+            )}`
+          );
+
+        const data =
+          await weatherResponse.json();
+
+        if (!weatherResponse.ok) {
+          throw new Error(
+            data.message ||
+              "Failed to fetch weather."
+          );
+        }
+
+        // ======================================
+        // STEP 3: STORE WEATHER
+        // ======================================
+
+        setWeather(data);
+
+        // ======================================
+        // STEP 4: UPDATE WEATHER VALUES
+        // ======================================
+
+        setForm((previous) => ({
+          ...previous,
+
+          temperature:
+            data.temperature !== null
+              ? String(data.temperature)
+              : previous.temperature,
+
+          humidity:
+            data.humidity !== null
+              ? String(data.humidity)
+              : previous.humidity,
+
+          rainfall:
+            data.rainfall !== null
+              ? String(data.rainfall)
+              : previous.rainfall,
+        }));
+      } catch (err) {
+        setWeather(null);
+
+        setWeatherError(
+          err instanceof Error
+            ? err.message
+            : "Failed to fetch weather."
         );
-
-      const location =
-        await geocodeResponse.json();
-
-      if (!geocodeResponse.ok) {
-        throw new Error(
-          location.message ||
-            "Location not found."
-        );
+      } finally {
+        setWeatherLoading(false);
       }
-
-      // ======================================
-      // STEP 2: Fetch weather
-      // ======================================
-
-      const weatherResponse =
-        await fetch(
-          `http://localhost:5000/api/weather?latitude=${encodeURIComponent(
-            location.latitude
-          )}&longitude=${encodeURIComponent(
-            location.longitude
-          )}`
-        );
-
-      const data =
-        await weatherResponse.json();
-
-      if (!weatherResponse.ok) {
-        throw new Error(
-          data.message ||
-            "Failed to fetch weather."
-        );
-      }
-
-      // ======================================
-      // STEP 3: Store weather
-      // ======================================
-
-      setWeather(data);
-
-      // ======================================
-      // STEP 4: Update form automatically
-      // ======================================
-
-      setForm((previous) => ({
-        ...previous,
-
-        temperature:
-          data.temperature !== null
-            ? String(data.temperature)
-            : previous.temperature,
-
-        humidity:
-          data.humidity !== null
-            ? String(data.humidity)
-            : previous.humidity,
-
-        rainfall:
-          data.rainfall !== null
-            ? String(data.rainfall)
-            : previous.rainfall,
-      }));
-
-    } catch (err) {
-
-      setWeather(null);
-
-      setWeatherError(
-        err instanceof Error
-          ? err.message
-          : "Failed to fetch weather."
-      );
-
-    } finally {
-
-      setWeatherLoading(false);
-
-    }
-  }, [
-    form.state_name,
-    form.district_name,
-  ]);
+    },
+    [
+      form.state_name,
+      form.district_name,
+    ]
+  );
 
   // ==========================================
-  // Fetch weather when page loads
+  // FETCH WEATHER WHEN LOCATION CHANGES
   // ==========================================
 
   useEffect(() => {
@@ -206,7 +242,7 @@ export default function AIAnalysisPage() {
   }, [fetchWeather]);
 
   // ==========================================
-  // Form Change
+  // FORM CHANGE
   // ==========================================
 
   const handleChange = (
@@ -214,14 +250,49 @@ export default function AIAnalysisPage() {
       HTMLInputElement | HTMLSelectElement
     >
   ) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
+    const {
+      name,
+      value,
+    } = e.target;
+
+    // ========================================
+    // STATE CHANGE
+    // ========================================
+
+    if (name === "state_name") {
+      const newState =
+        indiaLocations.find(
+          (location) =>
+            location.state === value
+        );
+
+      setWeather(null);
+      setWeatherError("");
+
+      setForm((previous) => ({
+        ...previous,
+
+        state_name: value,
+
+        district_name:
+          newState?.districts[0] || "",
+      }));
+
+      return;
+    }
+
+    // ========================================
+    // NORMAL FIELD CHANGE
+    // ========================================
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
   };
 
   // ==========================================
-  // File Change
+  // FILE CHANGE
   // ==========================================
 
   const handleFileChange = (
@@ -237,7 +308,7 @@ export default function AIAnalysisPage() {
   };
 
   // ==========================================
-  // Submit AI Analysis
+  // SUBMIT AI ANALYSIS
   // ==========================================
 
   const handleSubmit = async (
@@ -294,24 +365,19 @@ export default function AIAnalysisPage() {
       }
 
       setResult(data);
-
     } catch (err) {
-
       setError(
         err instanceof Error
           ? err.message
           : "Something went wrong."
       );
-
     } finally {
-
       setLoading(false);
-
     }
   };
 
   // ==========================================
-  // Format Disease
+  // FORMAT DISEASE NAME
   // ==========================================
 
   const formatDiseaseName = (
@@ -329,7 +395,7 @@ export default function AIAnalysisPage() {
   };
 
   // ==========================================
-  // Format Status
+  // FORMAT STATUS
   // ==========================================
 
   const formatStatus = (
@@ -347,6 +413,10 @@ export default function AIAnalysisPage() {
       );
   };
 
+  // ==========================================
+  // UI
+  // ==========================================
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 px-4 py-8 sm:px-6 lg:px-8">
 
@@ -360,7 +430,9 @@ export default function AIAnalysisPage() {
 
           <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">
 
-            <span>🌱</span>
+            <span>
+              🌱
+            </span>
 
             <span>
               AI-Powered Agriculture
@@ -390,7 +462,7 @@ export default function AIAnalysisPage() {
           className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl"
         >
 
-          {/* Form Header */}
+          {/* FORM HEADER */}
 
           <div className="border-b border-gray-200 bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-6 text-white sm:px-8">
 
@@ -445,7 +517,6 @@ export default function AIAnalysisPage() {
                 type="number"
               />
 
-
               <WeatherInput
                 label="Temperature (°C)"
                 name="temperature"
@@ -453,7 +524,6 @@ export default function AIAnalysisPage() {
                 onChange={handleChange}
                 loading={weatherLoading}
               />
-
 
               <WeatherInput
                 label="Humidity (%)"
@@ -463,7 +533,6 @@ export default function AIAnalysisPage() {
                 loading={weatherLoading}
               />
 
-
               <InputField
                 label="Soil pH"
                 name="ph"
@@ -472,7 +541,6 @@ export default function AIAnalysisPage() {
                 type="number"
                 step="0.1"
               />
-
 
               <WeatherInput
                 label="Rainfall (mm)"
@@ -485,7 +553,7 @@ export default function AIAnalysisPage() {
             </div>
 
 
-            {/* Weather Status */}
+            {/* WEATHER STATUS */}
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
@@ -541,7 +609,7 @@ export default function AIAnalysisPage() {
               <SectionHeader
                 icon="📍"
                 title="Location & Crop Information"
-                description="Provide the agricultural location and crop details."
+                description="Select the agricultural location and provide crop details."
               />
 
 
@@ -555,19 +623,31 @@ export default function AIAnalysisPage() {
                   type="number"
                 />
 
-                <InputField
+
+                {/* STATE DROPDOWN */}
+
+                <SelectField
                   label="State"
                   name="state_name"
                   value={form.state_name}
                   onChange={handleChange}
+                  options={indiaLocations.map(
+                    (location) =>
+                      location.state
+                  )}
                 />
 
-                <InputField
+
+                {/* DISTRICT DROPDOWN */}
+
+                <SelectField
                   label="District"
                   name="district_name"
                   value={form.district_name}
                   onChange={handleChange}
+                  options={districts}
                 />
+
 
                 <InputField
                   label="Crop"
@@ -576,12 +656,14 @@ export default function AIAnalysisPage() {
                   onChange={handleChange}
                 />
 
+
                 <InputField
                   label="Crop Type"
                   name="crop_type"
                   value={form.crop_type}
                   onChange={handleChange}
                 />
+
 
                 <InputField
                   label="Season"
@@ -655,19 +737,23 @@ export default function AIAnalysisPage() {
                   📷
                 </div>
 
+
                 <p className="text-lg font-semibold text-gray-800">
                   {file
                     ? "Change plant image"
                     : "Upload plant leaf image"}
                 </p>
 
+
                 <p className="mt-2 text-sm text-gray-500">
                   PNG, JPG or JPEG images are supported
                 </p>
 
+
                 <span className="mt-5 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white transition group-hover:bg-green-700">
                   Choose Image
                 </span>
+
 
                 <input
                   id="plant-image"
@@ -750,7 +836,9 @@ export default function AIAnalysisPage() {
                 </>
               ) : (
                 <>
-                  <span>🤖</span>
+                  <span>
+                    🤖
+                  </span>
 
                   Run AI Analysis
                 </>
@@ -770,7 +858,7 @@ export default function AIAnalysisPage() {
         {result && (
           <div className="mt-10">
 
-            {/* Result Header */}
+            {/* RESULT HEADER */}
 
             <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
 
@@ -816,7 +904,7 @@ export default function AIAnalysisPage() {
             </div>
 
 
-            {/* Result Cards */}
+            {/* RESULT CARDS */}
 
             <div className="grid gap-6 lg:grid-cols-3">
 
@@ -858,7 +946,7 @@ export default function AIAnalysisPage() {
             </div>
 
 
-            {/* Recommendation Panel */}
+            {/* RECOMMENDATION PANEL */}
 
             <div
               className={`mt-6 overflow-hidden rounded-3xl border shadow-lg ${
@@ -896,7 +984,7 @@ export default function AIAnalysisPage() {
 
               <div className="p-6 sm:p-8">
 
-                {/* Status */}
+                {/* STATUS */}
 
                 <div className="mb-6">
 
@@ -923,7 +1011,7 @@ export default function AIAnalysisPage() {
                 </div>
 
 
-                {/* Alerts */}
+                {/* ALERTS */}
 
                 {result.recommendation.alerts.length >
                   0 && (
@@ -946,7 +1034,10 @@ export default function AIAnalysisPage() {
                     <ul className="mt-4 space-y-3">
 
                       {result.recommendation.alerts.map(
-                        (alert, index) => (
+                        (
+                          alert,
+                          index
+                        ) => (
 
                           <li
                             key={index}
@@ -973,7 +1064,7 @@ export default function AIAnalysisPage() {
                 )}
 
 
-                {/* Recommendations */}
+                {/* RECOMMENDATIONS */}
 
                 {result.recommendation.recommendations.length >
                   0 && (
@@ -996,7 +1087,10 @@ export default function AIAnalysisPage() {
                     <ul className="mt-4 space-y-3">
 
                       {result.recommendation.recommendations.map(
-                        (recommendation, index) => (
+                        (
+                          recommendation,
+                          index
+                        ) => (
 
                           <li
                             key={index}
@@ -1027,14 +1121,14 @@ export default function AIAnalysisPage() {
             </div>
 
 
-            {/* Disclaimer */}
+            {/* DISCLAIMER */}
 
             <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4 text-center text-xs leading-5 text-gray-500">
-              AI predictions are based on the supplied inputs
-              and training data. They should be used as
-              decision-support information and verified with
-              local agricultural conditions and qualified
-              agricultural experts.
+              AI predictions are based on the supplied
+              inputs and training data. They should be
+              used as decision-support information and
+              verified with local agricultural conditions
+              and qualified agricultural experts.
             </div>
 
           </div>
@@ -1124,6 +1218,61 @@ function InputField({
         step={step}
         className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-100"
       />
+
+    </div>
+  );
+}
+
+
+/* =========================================================
+   SELECT FIELD
+========================================================= */
+
+function SelectField({
+  label,
+  name,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => void;
+  options: string[];
+}) {
+  return (
+    <div>
+
+      <label
+        htmlFor={name}
+        className="mb-2 block text-sm font-semibold text-gray-700"
+      >
+        {label}
+      </label>
+
+      <select
+        id={name}
+        name={name}
+        value={value}
+        onChange={onChange}
+        className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-100"
+      >
+
+        {options.map(
+          (option) => (
+            <option
+              key={option}
+              value={option}
+            >
+              {option}
+            </option>
+          )
+        )}
+
+      </select>
 
     </div>
   );
