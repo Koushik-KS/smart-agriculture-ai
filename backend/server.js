@@ -10,48 +10,62 @@ const app = express();
 
 const PORT = 5000;
 
-const CROP_AI_URL = "http://127.0.0.1:8000";
-const DISEASE_AI_URL = "http://127.0.0.1:8001";
-const YIELD_AI_URL = "http://127.0.0.1:8002";
-const RECOMMENDATION_AI_URL = "http://127.0.0.1:8003";
+const CROP_AI_URL =
+  "http://127.0.0.1:8000";
+
+const DISEASE_AI_URL =
+  "http://127.0.0.1:8001";
+
+const YIELD_AI_URL =
+  "http://127.0.0.1:8002";
+
+const RECOMMENDATION_AI_URL =
+  "http://127.0.0.1:8003";
 
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage:
+    multer.memoryStorage(),
 });
 
 app.use(cors());
 app.use(express.json());
 
+/* =========================================================
+   YIELD DATASET
+========================================================= */
 
-
-// =========================================================
-// YIELD DATASET
-// =========================================================
-
-const YIELD_DATASET_PATH = path.join(
-  __dirname,
-  "..",
-  "ai-service",
-  "yield-prediction",
-  "dataset",
-  "Crop_Wise_Area_Production_Yield",
-  "crop-wise-area-production-yield.csv"
-);
+const YIELD_DATASET_PATH =
+  path.join(
+    __dirname,
+    "..",
+    "ai-service",
+    "yield-prediction",
+    "dataset",
+    "Crop_Wise_Area_Production_Yield",
+    "crop-wise-area-production-yield.csv"
+  );
 
 let yieldRecords = [];
 
-function normalizeText(value) {
+/* =========================================================
+   NORMALIZE TEXT
+========================================================= */
+
+function normalizeText(
+  value
+) {
   return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, " ");
+    .replace(
+      /\s+/g,
+      " "
+    );
 }
 
-
-
-// =========================================================
-// NUMBER VALIDATION HELPER
-// =========================================================
+/* =========================================================
+   NUMBER VALIDATION
+========================================================= */
 
 function validateNumber(
   value,
@@ -59,227 +73,481 @@ function validateNumber(
   min,
   max
 ) {
-  const number = Number(value);
+  const number =
+    Number(value);
 
-  if (!Number.isFinite(number)) {
+  if (
+    !Number.isFinite(
+      number
+    )
+  ) {
     return `${fieldName} must be a valid number.`;
   }
 
-  if (number < min || number > max) {
+  if (
+    number < min ||
+    number > max
+  ) {
     return `${fieldName} must be between ${min} and ${max}.`;
   }
 
   return null;
 }
 
-
-
-// =========================================================
-// LOAD YIELD DATASET
-// =========================================================
+/* =========================================================
+   LOAD YIELD DATASET
+========================================================= */
 
 try {
-
-  if (fs.existsSync(YIELD_DATASET_PATH)) {
-
-    const csvText = fs.readFileSync(
-      YIELD_DATASET_PATH,
-      "utf8"
-    );
-
-    const lines = csvText
-      .split(/\r?\n/)
-      .filter(
-        (line) => line.trim() !== ""
+  if (
+    fs.existsSync(
+      YIELD_DATASET_PATH
+    )
+  ) {
+    const csvText =
+      fs.readFileSync(
+        YIELD_DATASET_PATH,
+        "utf8"
       );
 
-    const headers = lines[0].split(",");
+    const lines =
+      csvText
+        .split(/\r?\n/)
+        .filter(
+          (line) =>
+            line.trim() !== ""
+        );
 
-    yieldRecords = lines
-      .slice(1)
-      .map((line) => {
+    const headers =
+      lines[0].split(",");
 
-        const values = line.split(",");
+    yieldRecords =
+      lines
+        .slice(1)
+        .map(
+          (line) => {
+            const values =
+              line.split(",");
 
-        const record = {};
+            const record = {};
 
-        headers.forEach(
-          (header, index) => {
+            headers.forEach(
+              (
+                header,
+                index
+              ) => {
+                record[
+                  header.trim()
+                ] =
+                  values[
+                    index
+                  ]?.trim() ||
+                  "";
+              }
+            );
 
-            record[header.trim()] =
-              values[index]?.trim() || "";
-
+            return record;
           }
         );
 
-        return record;
-
-      });
-
     console.log(
-      `✅ Yield dataset loaded: ${yieldRecords.length} records`
+      `Yield dataset loaded: ${yieldRecords.length} records`
     );
-
   } else {
-
     console.warn(
-      "⚠️ Yield dataset not found:",
+      "Yield dataset not found:",
       YIELD_DATASET_PATH
     );
-
   }
-
 } catch (error) {
-
   console.error(
-    "❌ Failed to load yield dataset:",
+    "Failed to load yield dataset:",
     error.message
   );
-
 }
 
+/* =========================================================
+   HEALTH CHECK
+========================================================= */
 
+app.get(
+  "/",
+  (req, res) => {
+    res.json({
+      message:
+        "Smart Agriculture Backend is running",
+    });
+  }
+);
 
-// =========================================================
-// HEALTH CHECK
-// =========================================================
-
-app.get("/", (req, res) => {
-
-  res.json({
-    message:
-      "Smart Agriculture Backend is running",
-  });
-
-});
-
-
-
-// =========================================================
-// LOCATION GEOCODING
-// =========================================================
+/* =========================================================
+   LOCATION GEOCODING
+========================================================= */
 
 app.get(
   "/api/geocode",
-  async (req, res) => {
-
+  async (
+    req,
+    res
+  ) => {
     try {
-
       const {
         state,
         district,
       } = req.query;
 
-      if (!state || !district) {
-
-        return res.status(400).json({
-          message:
-            "State and district are required.",
-        });
-
+      if (
+        !state ||
+        !district
+      ) {
+        return res
+          .status(400)
+          .json({
+            message:
+              "State and district are required.",
+          });
       }
 
-      const locationQuery =
-        `${district}, ${state}, India`;
+      const cleanState =
+        String(
+          state
+        ).trim();
 
-      const geocodeUrl =
-        "https://geocoding-api.open-meteo.com/v1/search" +
-        `?name=${encodeURIComponent(
-          locationQuery
-        )}` +
-        "&count=5" +
-        "&language=en" +
-        "&format=json";
+      const cleanDistrict =
+        String(
+          district
+        ).trim();
 
-      const response =
-        await fetch(geocodeUrl);
+      /* -----------------------------------------------------
+         Open-Meteo search helper
+      ----------------------------------------------------- */
 
-      if (!response.ok) {
+      async function searchLocation(
+        query
+      ) {
+        const geocodeUrl =
+          "https://geocoding-api.open-meteo.com/v1/search" +
+          `?name=${encodeURIComponent(
+            query
+          )}` +
+          "&count=10" +
+          "&language=en" +
+          "&format=json";
 
-        throw new Error(
-          `Geocoding API returned ${response.status}`
+        const response =
+          await fetch(
+            geocodeUrl
+          );
+
+        if (
+          !response.ok
+        ) {
+          throw new Error(
+            `Geocoding API returned ${response.status}`
+          );
+        }
+
+        const data =
+          await response.json();
+
+        return (
+          data.results ||
+          []
         );
-
       }
 
-      const data =
-        await response.json();
+      /* -----------------------------------------------------
+         Score location
+      ----------------------------------------------------- */
+
+      function scoreLocation(
+        location
+      ) {
+        let score = 0;
+
+        const locationName =
+          normalizeText(
+            location.name
+          );
+
+        const admin1 =
+          normalizeText(
+            location.admin1
+          );
+
+        const admin2 =
+          normalizeText(
+            location.admin2
+          );
+
+        const expectedState =
+          normalizeText(
+            cleanState
+          );
+
+        const expectedDistrict =
+          normalizeText(
+            cleanDistrict
+          );
+
+        const country =
+          normalizeText(
+            location.country
+          );
+
+        /* ---------------------------------------------------
+           Only accept India
+        --------------------------------------------------- */
+
+        if (
+          country !==
+          "india"
+        ) {
+          return -1;
+        }
+
+        /* ---------------------------------------------------
+           District matching
+        --------------------------------------------------- */
+
+        if (
+          locationName ===
+          expectedDistrict
+        ) {
+          score += 100;
+        }
+
+        if (
+          admin2 ===
+          expectedDistrict
+        ) {
+          score += 80;
+        }
+
+        if (
+          locationName.includes(
+            expectedDistrict
+          )
+        ) {
+          score += 40;
+        }
+
+        /* ---------------------------------------------------
+           State matching
+        --------------------------------------------------- */
+
+        if (
+          admin1 ===
+          expectedState
+        ) {
+          score += 60;
+        }
+
+        if (
+          admin1.includes(
+            expectedState
+          )
+        ) {
+          score += 20;
+        }
+
+        /* ---------------------------------------------------
+           Prefer administrative locations
+        --------------------------------------------------- */
+
+        const featureCode =
+          String(
+            location.feature_code ||
+              ""
+          ).toUpperCase();
+
+        if (
+          featureCode.includes(
+            "ADM"
+          )
+        ) {
+          score += 10;
+        }
+
+        return score;
+      }
+
+      /* -----------------------------------------------------
+         Multiple search strategies
+      ----------------------------------------------------- */
+
+      const searchQueries = [
+        `${cleanDistrict}, ${cleanState}, India`,
+        `${cleanDistrict}, India`,
+        `${cleanState}, India`,
+      ];
+
+      let bestLocation =
+        null;
+
+      let bestScore =
+        -1;
+
+      /* -----------------------------------------------------
+         Search
+      ----------------------------------------------------- */
+
+      for (
+        const query of
+          searchQueries
+      ) {
+        try {
+          console.log(
+            `Geocoding search: ${query}`
+          );
+
+          const results =
+            await searchLocation(
+              query
+            );
+
+          for (
+            const location of
+              results
+          ) {
+            const score =
+              scoreLocation(
+                location
+              );
+
+            if (
+              score >
+              bestScore
+            ) {
+              bestScore =
+                score;
+
+              bestLocation =
+                location;
+            }
+          }
+
+          /*
+           * Strong district + state
+           * match found.
+           */
+
+          if (
+            bestLocation &&
+            bestScore >= 120
+          ) {
+            break;
+          }
+        } catch (
+          searchError
+        ) {
+          console.error(
+            `Geocoding search failed for "${query}":`,
+            searchError.message
+          );
+        }
+      }
+
+      /* -----------------------------------------------------
+         No location found
+      ----------------------------------------------------- */
 
       if (
-        !data.results ||
-        data.results.length === 0
+        !bestLocation
       ) {
-
-        return res.status(404).json({
-          message:
-            "Location not found.",
-        });
-
+        return res
+          .status(404)
+          .json({
+            message:
+              `Location not found for ${cleanDistrict}, ${cleanState}.`,
+          });
       }
 
-      const location =
-        data.results[0];
+      /* -----------------------------------------------------
+         Return location
+      ----------------------------------------------------- */
+
+      console.log(
+        `Location found: ${bestLocation.name}, ${bestLocation.admin1 || cleanState}`
+      );
+
+      console.log(
+        `Coordinates: ${bestLocation.latitude}, ${bestLocation.longitude}`
+      );
 
       res.json({
-
         latitude:
-          location.latitude,
+          bestLocation.latitude,
 
         longitude:
-          location.longitude,
+          bestLocation.longitude,
 
         name:
-          location.name,
+          bestLocation.name,
 
         country:
-          location.country,
+          bestLocation.country,
 
         admin1:
-          location.admin1 || null,
+          bestLocation.admin1 ||
+          null,
 
+        admin2:
+          bestLocation.admin2 ||
+          null,
+
+        matched_query:
+          `${cleanDistrict}, ${cleanState}, India`,
+
+        location_confidence:
+          bestScore >= 120
+            ? "high"
+            : bestScore >= 70
+            ? "moderate"
+            : "fallback",
       });
-
     } catch (error) {
-
       console.error(
         "Geocoding API error:",
         error.message
       );
 
-      res.status(500).json({
-        message:
-          "Failed to find location.",
-      });
-
+      res
+        .status(500)
+        .json({
+          message:
+            "Failed to find location.",
+        });
     }
-
   }
 );
 
-
-
-// =========================================================
-// WEATHER INFORMATION
-// =========================================================
+/* =========================================================
+   WEATHER
+========================================================= */
 
 app.get(
   "/api/weather",
-  async (req, res) => {
-
+  async (
+    req,
+    res
+  ) => {
     try {
-
       const {
         latitude,
         longitude,
       } = req.query;
 
-      if (!latitude || !longitude) {
-
-        return res.status(400).json({
-          message:
-            "Latitude and longitude are required.",
-        });
-
+      if (
+        !latitude ||
+        !longitude
+      ) {
+        return res
+          .status(400)
+          .json({
+            message:
+              "Latitude and longitude are required.",
+          });
       }
 
       const weatherUrl =
@@ -297,14 +565,16 @@ app.get(
         "&timezone=auto";
 
       const response =
-        await fetch(weatherUrl);
+        await fetch(
+          weatherUrl
+        );
 
-      if (!response.ok) {
-
+      if (
+        !response.ok
+      ) {
         throw new Error(
           `Weather API returned ${response.status}`
         );
-
       }
 
       const weather =
@@ -312,35 +582,44 @@ app.get(
 
       const currentTemperature =
         weather.current
-          ?.temperature_2m ?? null;
+          ?.temperature_2m ??
+        null;
 
       const currentHumidity =
         weather.current
-          ?.relative_humidity_2m ?? null;
+          ?.relative_humidity_2m ??
+        null;
 
       const currentPrecipitation =
         weather.current
-          ?.precipitation ?? null;
+          ?.precipitation ??
+        null;
 
       const hourlyPrecipitation =
         weather.hourly
-          ?.precipitation || [];
+          ?.precipitation ||
+        [];
 
       const recentPrecipitation =
         hourlyPrecipitation
           .filter(
             (value) =>
-              typeof value === "number" &&
-              Number.isFinite(value)
+              typeof value ===
+                "number" &&
+              Number.isFinite(
+                value
+              )
           )
           .reduce(
-            (total, value) =>
+            (
+              total,
+              value
+            ) =>
               total + value,
             0
           );
 
       res.json({
-
         temperature:
           currentTemperature,
 
@@ -352,58 +631,59 @@ app.get(
 
         recent_precipitation:
           Number(
-            recentPrecipitation.toFixed(2)
+            recentPrecipitation.toFixed(
+              2
+            )
           ),
 
         temperature_unit:
-          weather.current_units
+          weather
+            .current_units
             ?.temperature_2m ||
           "°C",
 
         humidity_unit:
-          weather.current_units
+          weather
+            .current_units
             ?.relative_humidity_2m ||
           "%",
 
         precipitation_unit:
-          weather.current_units
+          weather
+            .current_units
             ?.precipitation ||
           "mm",
 
         rainfall:
           null,
-
       });
-
     } catch (error) {
-
       console.error(
         "Weather API error:",
         error.message
       );
 
-      res.status(500).json({
-        message:
-          "Failed to fetch weather information.",
-      });
-
+      res
+        .status(500)
+        .json({
+          message:
+            "Failed to fetch weather information.",
+        });
     }
-
   }
 );
 
-
-
-// =========================================================
-// PREVIOUS YEAR YIELD LOOKUP
-// =========================================================
+/* =========================================================
+   PREVIOUS YEAR YIELD
+========================================================= */
 
 app.get(
   "/api/previous-yield",
-  (req, res) => {
-
+  (
+    req,
+    res
+  ) => {
     try {
-
       const {
         year_start,
         state_name,
@@ -419,28 +699,30 @@ app.get(
         !crop_name ||
         !season
       ) {
-
-        return res.status(400).json({
-          message:
-            "year_start, state_name, district_name, crop_name and season are required.",
-        });
-
+        return res
+          .status(400)
+          .json({
+            message:
+              "year_start, state_name, district_name, crop_name and season are required.",
+          });
       }
 
       const currentYear =
-        Number(year_start);
+        Number(
+          year_start
+        );
 
       if (
         !Number.isInteger(
           currentYear
         )
       ) {
-
-        return res.status(400).json({
-          message:
-            "year_start must be a valid year.",
-        });
-
+        return res
+          .status(400)
+          .json({
+            message:
+              "year_start must be a valid year.",
+          });
       }
 
       const previousYear =
@@ -452,108 +734,86 @@ app.get(
       const matchingRecords =
         yieldRecords.filter(
           (record) => {
-
-            const recordYear =
+            return (
               normalizeText(
                 record.year
-              );
-
-            const recordState =
-              normalizeText(
-                record.state_name
-              );
-
-            const recordDistrict =
-              normalizeText(
-                record.district_name
-              );
-
-            const recordCrop =
-              normalizeText(
-                record.crop_name
-              );
-
-            const recordSeason =
-              normalizeText(
-                record.season
-              );
-
-            return (
-
-              recordYear ===
+              ) ===
                 normalizeText(
                   previousYearLabel
                 ) &&
-
-              recordState ===
+              normalizeText(
+                record.state_name
+              ) ===
                 normalizeText(
                   state_name
                 ) &&
-
-              recordDistrict ===
+              normalizeText(
+                record.district_name
+              ) ===
                 normalizeText(
                   district_name
                 ) &&
-
-              recordCrop ===
+              normalizeText(
+                record.crop_name
+              ) ===
                 normalizeText(
                   crop_name
                 ) &&
-
-              recordSeason ===
+              normalizeText(
+                record.season
+              ) ===
                 normalizeText(
                   season
                 )
-
             );
-
           }
         );
 
       const validRecords =
         matchingRecords.filter(
           (record) => {
-
             const value =
-              Number(record.yield);
+              Number(
+                record.yield
+              );
 
             return (
-              Number.isFinite(value) &&
+              Number.isFinite(
+                value
+              ) &&
               value >= 0
             );
-
           }
         );
 
       if (
-        validRecords.length === 0
+        validRecords.length ===
+        0
       ) {
+        return res
+          .status(404)
+          .json({
+            message:
+              "Previous year yield was not found for the selected location, crop and season.",
 
-        return res.status(404).json({
+            previous_year:
+              previousYear,
 
-          message:
-            "Previous year yield was not found for the selected location, crop and season.",
+            previous_year_label:
+              previousYearLabel,
 
-          previous_year:
-            previousYear,
-
-          previous_year_label:
-            previousYearLabel,
-
-          previous_yield:
-            null,
-
-        });
-
+            previous_yield:
+              null,
+          });
       }
 
       const previousYield =
         Number(
-          validRecords[0].yield
+          validRecords[0]
+            .yield
         );
 
       res.json({
-
         previous_year:
           previousYear,
 
@@ -570,38 +830,34 @@ app.get(
 
         source:
           "Historical agricultural yield dataset",
-
       });
-
     } catch (error) {
-
       console.error(
         "Previous yield lookup error:",
         error.message
       );
 
-      res.status(500).json({
-        message:
-          "Failed to retrieve previous year yield.",
-      });
-
+      res
+        .status(500)
+        .json({
+          message:
+            "Failed to retrieve previous year yield.",
+        });
     }
-
   }
 );
 
-
-
-// =========================================================
-// CROP RECOMMENDATION
-// =========================================================
+/* =========================================================
+   CROP RECOMMENDATION
+========================================================= */
 
 app.post(
   "/api/crop-recommendation",
-  async (req, res) => {
-
+  async (
+    req,
+    res
+  ) => {
     try {
-
       const response =
         await axios.post(
           `${CROP_AI_URL}/predict`,
@@ -611,45 +867,43 @@ app.post(
       res.json(
         response.data
       );
-
     } catch (error) {
-
       console.error(
         "Crop AI service error:",
-        error.response?.data ||
+        error.response
+          ?.data ||
           error.message
       );
 
-      res.status(500).json({
-        message:
-          "Failed to get crop recommendation",
-      });
-
+      res
+        .status(500)
+        .json({
+          message:
+            "Failed to get crop recommendation",
+        });
     }
-
   }
 );
 
-
-
-// =========================================================
-// PLANT DISEASE DETECTION
-// =========================================================
+/* =========================================================
+   PLANT DISEASE
+========================================================= */
 
 app.post(
   "/api/plant-disease",
   upload.single("file"),
-  async (req, res) => {
-
+  async (
+    req,
+    res
+  ) => {
     try {
-
       if (!req.file) {
-
-        return res.status(400).json({
-          message:
-            "Please upload a plant leaf image.",
-        });
-
+        return res
+          .status(400)
+          .json({
+            message:
+              "Please upload a plant leaf image.",
+          });
       }
 
       const formData =
@@ -659,13 +913,13 @@ app.post(
         "file",
         req.file.buffer,
         {
-
           filename:
-            req.file.originalname,
+            req.file
+              .originalname,
 
           contentType:
-            req.file.mimetype,
-
+            req.file
+              .mimetype,
         }
       );
 
@@ -674,57 +928,47 @@ app.post(
           `${DISEASE_AI_URL}/predict`,
           formData,
           {
-
             headers: {
               ...formData.getHeaders(),
             },
 
             maxBodyLength:
               Infinity,
-
           }
         );
-
-      // The response.data now includes:
-      // predicted_disease
-      // confidence
-      // confidence_level
-      // top_predictions
 
       res.json(
         response.data
       );
-
     } catch (error) {
-
       console.error(
         "Plant Disease AI service error:",
-        error.response?.data ||
+        error.response
+          ?.data ||
           error.message
       );
 
-      res.status(500).json({
-        message:
-          "Failed to detect plant disease",
-      });
-
+      res
+        .status(500)
+        .json({
+          message:
+            "Failed to detect plant disease",
+        });
     }
-
   }
 );
 
-
-
-// =========================================================
-// YIELD PREDICTION
-// =========================================================
+/* =========================================================
+   YIELD PREDICTION
+========================================================= */
 
 app.post(
   "/api/yield-prediction",
-  async (req, res) => {
-
+  async (
+    req,
+    res
+  ) => {
     try {
-
       const response =
         await axios.post(
           `${YIELD_AI_URL}/predict`,
@@ -734,37 +978,35 @@ app.post(
       res.json(
         response.data
       );
-
     } catch (error) {
-
       console.error(
         "Yield AI service error:",
-        error.response?.data ||
+        error.response
+          ?.data ||
           error.message
       );
 
-      res.status(500).json({
-        message:
-          "Failed to predict crop yield",
-      });
-
+      res
+        .status(500)
+        .json({
+          message:
+            "Failed to predict crop yield",
+        });
     }
-
   }
 );
 
-
-
-// =========================================================
-// RECOMMENDATION ENGINE
-// =========================================================
+/* =========================================================
+   RECOMMENDATION ENGINE
+========================================================= */
 
 app.post(
   "/api/recommendation",
-  async (req, res) => {
-
+  async (
+    req,
+    res
+  ) => {
     try {
-
       const response =
         await axios.post(
           `${RECOMMENDATION_AI_URL}/recommend`,
@@ -774,49 +1016,47 @@ app.post(
       res.json(
         response.data
       );
-
     } catch (error) {
-
       console.error(
         "Recommendation AI service error:",
-        error.response?.data ||
+        error.response
+          ?.data ||
           error.message
       );
 
-      res.status(500).json({
-        message:
-          "Failed to generate agricultural recommendation",
-      });
-
+      res
+        .status(500)
+        .json({
+          message:
+            "Failed to generate agricultural recommendation",
+        });
     }
-
   }
 );
 
-
-
-// =========================================================
-// INTEGRATED AI WORKFLOW
-// =========================================================
+/* =========================================================
+   INTEGRATED AI WORKFLOW
+========================================================= */
 
 app.post(
   "/api/ai-analysis",
   upload.single("file"),
-  async (req, res) => {
-
+  async (
+    req,
+    res
+  ) => {
     try {
-
-      // ========================================
-      // FILE VALIDATION
-      // ========================================
+      /* ===================================================
+         FILE VALIDATION
+      =================================================== */
 
       if (!req.file) {
-
-        return res.status(400).json({
-          message:
-            "Please upload a plant leaf image.",
-        });
-
+        return res
+          .status(400)
+          .json({
+            message:
+              "Please upload a plant leaf image.",
+          });
       }
 
       if (
@@ -825,22 +1065,19 @@ app.post(
           "image/"
         )
       ) {
-
-        return res.status(400).json({
-          message:
-            "Uploaded file must be an image.",
-        });
-
+        return res
+          .status(400)
+          .json({
+            message:
+              "Uploaded file must be an image.",
+          });
       }
 
-
-
-      // ========================================
-      // REQUIRED TEXT FIELDS
-      // ========================================
+      /* ===================================================
+         REQUIRED FIELDS
+      =================================================== */
 
       const requiredFields = [
-
         "year_start",
         "state_name",
         "district_name",
@@ -848,13 +1085,12 @@ app.post(
         "crop_type",
         "season",
         "area",
-
       ];
 
       for (
-        const field of requiredFields
+        const field of
+          requiredFields
       ) {
-
         if (
           req.body[field] ===
             undefined ||
@@ -862,26 +1098,20 @@ app.post(
             req.body[field]
           ).trim() === ""
         ) {
-
-          return res.status(400).json({
-
-            message:
-              `${field} is required.`,
-
-          });
-
+          return res
+            .status(400)
+            .json({
+              message:
+                `${field} is required.`,
+            });
         }
-
       }
 
-
-
-      // ========================================
-      // NUMERIC VALIDATION
-      // ========================================
+      /* ===================================================
+         NUMERIC VALIDATION
+      =================================================== */
 
       const validations = [
-
         validateNumber(
           req.body.N,
           "Nitrogen (N)",
@@ -944,66 +1174,70 @@ app.post(
           0.0001,
           1000000
         ),
-
       ];
 
       const validationError =
         validations.find(
-          (message) =>
-            message !== null
+          (
+            message
+          ) =>
+            message !==
+            null
         );
 
-      if (validationError) {
-
-        return res.status(400).json({
-
-          message:
-            validationError,
-
-        });
-
+      if (
+        validationError
+      ) {
+        return res
+          .status(400)
+          .json({
+            message:
+              validationError,
+          });
       }
 
-
-
-      // ========================================
-      // PREPARE CROP INPUT
-      // ========================================
+      /* ===================================================
+         CROP INPUT
+      =================================================== */
 
       const cropInput = {
+        N: Number(
+          req.body.N
+        ),
 
-        N:
-          Number(req.body.N),
+        P: Number(
+          req.body.P
+        ),
 
-        P:
-          Number(req.body.P),
-
-        K:
-          Number(req.body.K),
+        K: Number(
+          req.body.K
+        ),
 
         temperature:
           Number(
-            req.body.temperature
+            req.body
+              .temperature
           ),
 
         humidity:
           Number(
-            req.body.humidity
+            req.body
+              .humidity
           ),
 
-        ph:
-          Number(req.body.ph),
+        ph: Number(
+          req.body.ph
+        ),
 
         rainfall:
-          Number(req.body.rainfall),
-
+          Number(
+            req.body.rainfall
+          ),
       };
 
-
-
-      // ========================================
-      // PREVIOUS YEAR YIELD
-      // ========================================
+      /* ===================================================
+         PREVIOUS YEAR
+      =================================================== */
 
       const currentYear =
         Number(
@@ -1018,111 +1252,85 @@ app.post(
 
       let previousYield =
         Number(
-          req.body.previous_yield
+          req.body
+            .previous_yield
         );
 
       let previousYieldSource =
         "user_input";
 
-
-
-      // ========================================
-      // AUTOMATIC HISTORICAL LOOKUP
-      // ========================================
+      /* ===================================================
+         HISTORICAL LOOKUP
+      =================================================== */
 
       const matchingRecords =
         yieldRecords.filter(
           (record) => {
-
-            const recordYear =
-              normalizeText(
-                record.year
-              );
-
-            const recordState =
-              normalizeText(
-                record.state_name
-              );
-
-            const recordDistrict =
-              normalizeText(
-                record.district_name
-              );
-
-            const recordCrop =
-              normalizeText(
-                record.crop_name
-              );
-
-            const recordSeason =
-              normalizeText(
-                record.season
-              );
-
             const recordYield =
               Number(
                 record.yield
               );
 
             return (
-
-              recordYear ===
+              normalizeText(
+                record.year
+              ) ===
                 normalizeText(
                   previousYearLabel
                 ) &&
-
-              recordState ===
+              normalizeText(
+                record.state_name
+              ) ===
                 normalizeText(
-                  req.body.state_name
+                  req.body
+                    .state_name
                 ) &&
-
-              recordDistrict ===
+              normalizeText(
+                record.district_name
+              ) ===
                 normalizeText(
-                  req.body.district_name
+                  req.body
+                    .district_name
                 ) &&
-
-              recordCrop ===
+              normalizeText(
+                record.crop_name
+              ) ===
                 normalizeText(
-                  req.body.crop_name
+                  req.body
+                    .crop_name
                 ) &&
-
-              recordSeason ===
+              normalizeText(
+                record.season
+              ) ===
                 normalizeText(
-                  req.body.season
+                  req.body
+                    .season
                 ) &&
-
               Number.isFinite(
                 recordYield
               ) &&
-
               recordYield >= 0
-
             );
-
           }
         );
 
-
-
       if (
-        matchingRecords.length > 0
+        matchingRecords.length >
+        0
       ) {
-
         previousYield =
           Number(
-            matchingRecords[0].yield
+            matchingRecords[0]
+              .yield
           );
 
         previousYieldSource =
           "historical_dataset";
-
       }
 
-
-
-      // ========================================
-      // VALIDATE PREVIOUS YIELD
-      // ========================================
+      /* ===================================================
+         PREVIOUS YIELD VALIDATION
+      =================================================== */
 
       if (
         !Number.isFinite(
@@ -1130,24 +1338,19 @@ app.post(
         ) ||
         previousYield < 0
       ) {
-
-        return res.status(400).json({
-
-          message:
-            "Previous year yield could not be determined.",
-
-        });
-
+        return res
+          .status(400)
+          .json({
+            message:
+              "Previous year yield could not be determined.",
+          });
       }
 
-
-
-      // ========================================
-      // PREPARE YIELD INPUT
-      // ========================================
+      /* ===================================================
+         YIELD INPUT
+      =================================================== */
 
       const yieldInput = {
-
         year_start:
           currentYear,
 
@@ -1155,7 +1358,8 @@ app.post(
           req.body.state_name,
 
         district_name:
-          req.body.district_name,
+          req.body
+            .district_name,
 
         crop_name:
           req.body.crop_name,
@@ -1167,18 +1371,17 @@ app.post(
           req.body.season,
 
         area:
-          Number(req.body.area),
+          Number(
+            req.body.area
+          ),
 
         previous_yield:
           previousYield,
-
       };
 
-
-
-      // ========================================
-      // DISEASE REQUEST
-      // ========================================
+      /* ===================================================
+         DISEASE FORM DATA
+      =================================================== */
 
       const diseaseFormData =
         new FormData();
@@ -1187,60 +1390,53 @@ app.post(
         "file",
         req.file.buffer,
         {
-
           filename:
-            req.file.originalname,
+            req.file
+              .originalname,
 
           contentType:
-            req.file.mimetype,
-
+            req.file
+              .mimetype,
         }
       );
 
-
-
-      // ========================================
-      // RUN THREE AI MODELS
-      // ========================================
+      /* ===================================================
+         RUN THREE AI MODELS
+      =================================================== */
 
       const [
         cropResponse,
         diseaseResponse,
         yieldResponse,
-      ] = await Promise.all([
+      ] =
+        await Promise.all([
+          axios.post(
+            `${CROP_AI_URL}/predict`,
+            cropInput
+          ),
 
-        axios.post(
-          `${CROP_AI_URL}/predict`,
-          cropInput
-        ),
+          axios.post(
+            `${DISEASE_AI_URL}/predict`,
+            diseaseFormData,
+            {
+              headers: {
+                ...diseaseFormData.getHeaders(),
+              },
 
-        axios.post(
-          `${DISEASE_AI_URL}/predict`,
-          diseaseFormData,
-          {
+              maxBodyLength:
+                Infinity,
+            }
+          ),
 
-            headers: {
-              ...diseaseFormData.getHeaders(),
-            },
+          axios.post(
+            `${YIELD_AI_URL}/predict`,
+            yieldInput
+          ),
+        ]);
 
-            maxBodyLength:
-              Infinity,
-
-          }
-        ),
-
-        axios.post(
-          `${YIELD_AI_URL}/predict`,
-          yieldInput
-        ),
-
-      ]);
-
-
-
-      // ========================================
-      // EXTRACT RESULTS
-      // ========================================
+      /* ===================================================
+         RESULTS
+      =================================================== */
 
       const cropResult =
         cropResponse.data;
@@ -1251,39 +1447,37 @@ app.post(
       const yieldResult =
         yieldResponse.data;
 
+      /* ===================================================
+         RECOMMENDATION INPUT
+      =================================================== */
 
+      const recommendationInput =
+        {
+          recommended_crop:
+            cropResult
+              .recommended_crop,
 
-      // ========================================
-      // RECOMMENDATION INPUT
-      // ========================================
+          crop_confidence:
+            cropResult.confidence,
 
-      const recommendationInput = {
+          selected_crop:
+            req.body.crop_name,
 
-        recommended_crop:
-          cropResult.recommended_crop,
+          predicted_disease:
+            diseaseResult
+              .predicted_disease,
 
-        crop_confidence:
-          cropResult.confidence,
+          disease_confidence:
+            diseaseResult.confidence,
 
-        selected_crop:
-          req.body.crop_name,
+          predicted_yield:
+            yieldResult
+              .predicted_yield,
+        };
 
-        predicted_disease:
-          diseaseResult.predicted_disease,
-
-        disease_confidence:
-          diseaseResult.confidence,
-
-        predicted_yield:
-          yieldResult.predicted_yield,
-
-      };
-
-
-
-      // ========================================
-      // RUN RECOMMENDATION ENGINE
-      // ========================================
+      /* ===================================================
+         RECOMMENDATION ENGINE
+      =================================================== */
 
       const recommendationResponse =
         await axios.post(
@@ -1291,18 +1485,14 @@ app.post(
           recommendationInput
         );
 
-
-
-      // ========================================
-      // FINAL INTEGRATED RESPONSE
-      // ========================================
+      /* ===================================================
+         FINAL RESPONSE
+      =================================================== */
 
       res.json({
-
         crop:
           cropResult,
 
-        // diseaseResult contains top_predictions
         disease:
           diseaseResult,
 
@@ -1310,10 +1500,10 @@ app.post(
           yieldResult,
 
         recommendation:
-          recommendationResponse.data,
+          recommendationResponse
+            .data,
 
         yield_metadata: {
-
           current_year:
             currentYear,
 
@@ -1328,44 +1518,35 @@ app.post(
 
           source:
             previousYieldSource,
-
         },
-
       });
-
     } catch (error) {
-
       console.error(
         "Integrated AI workflow error:",
-        error.response?.data ||
+        error.response
+          ?.data ||
           error.message
       );
 
-      res.status(500).json({
-
-        message:
-          "Failed to complete integrated AI analysis",
-
-      });
-
+      res
+        .status(500)
+        .json({
+          message:
+            "Failed to complete integrated AI analysis",
+        });
     }
-
   }
 );
 
-
-
-// =========================================================
-// START SERVER
-// =========================================================
+/* =========================================================
+   START SERVER
+========================================================= */
 
 app.listen(
   PORT,
   () => {
-
     console.log(
       `Backend server running on http://localhost:${PORT}`
     );
-
   }
 );
