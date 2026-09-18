@@ -14,6 +14,11 @@ type TopCropRecommendation = {
   confidence: number;
 };
 
+type TopDiseasePrediction = {
+  disease: string;
+  confidence: number;
+};
+
 type FeatureImportance = {
   feature: string;
   importance: number;
@@ -33,6 +38,7 @@ type AnalysisResult = {
     predicted_disease: string;
     confidence: number;
     confidence_level: string;
+    top_predictions?: TopDiseasePrediction[];
   };
 
   yield: {
@@ -1280,6 +1286,123 @@ export default function AIAnalysisPage() {
               />
 
             </div>
+
+            {/* ========================================
+                TOP 3 DISEASE PREDICTIONS
+            ======================================== */}
+
+            {result.disease.top_predictions &&
+              result.disease.top_predictions.length > 0 && (
+                <div className="mt-6 overflow-hidden rounded-3xl border border-red-200 bg-white shadow-lg">
+
+                  <div className="border-b border-red-100 bg-red-50 px-6 py-5 sm:px-8">
+
+                    <div className="flex items-center gap-3">
+
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">
+                        🦠
+                      </div>
+
+                      <div>
+
+                        <h3 className="text-2xl font-bold text-gray-900">
+                          Top Disease Predictions
+                        </h3>
+
+                        <p className="text-sm text-gray-600">
+                          AI-ranked plant disease classifications from the uploaded leaf image.
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                  <div className="p-6 sm:p-8">
+
+                    <div className="space-y-4">
+
+                      {result.disease.top_predictions.map(
+                        (prediction, index) => {
+
+                          const isTop =
+                            index === 0;
+
+                          return (
+                            <div
+                              key={`${prediction.disease}-${index}`}
+                              className={`rounded-2xl border p-4 ${
+                                isTop
+                                  ? "border-red-300 bg-red-50"
+                                  : "border-gray-200 bg-gray-50"
+                              }`}
+                            >
+
+                              <div className="flex items-center gap-4">
+
+                                <div
+                                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${
+                                    isTop
+                                      ? "bg-red-600 text-white"
+                                      : "bg-gray-200 text-gray-700"
+                                  }`}
+                                >
+                                  {index + 1}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+
+                                  <div className="flex items-center justify-between gap-4">
+
+                                    <p className="text-base font-bold capitalize text-gray-900">
+                                      {formatDiseaseName(
+                                        prediction.disease
+                                      )}
+                                    </p>
+
+                                    <p className="shrink-0 text-sm font-bold text-red-700">
+                                      {prediction.confidence}%
+                                    </p>
+
+                                  </div>
+
+                                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200">
+
+                                    <div
+                                      className={`h-full rounded-full ${
+                                        isTop
+                                          ? "bg-red-600"
+                                          : "bg-red-400"
+                                      }`}
+                                      style={{
+                                        width: `${Math.min(
+                                          Math.max(
+                                            prediction.confidence,
+                                            0
+                                          ),
+                                          100
+                                        )}%`,
+                                      }}
+                                    />
+
+                                  </div>
+
+                                </div>
+
+                              </div>
+
+                            </div>
+                          );
+                        }
+                      )}
+
+                    </div>
+
+                  </div>
+
+                </div>
+              )}
 
             {/* TOP 3 CROP RECOMMENDATIONS */}
 
