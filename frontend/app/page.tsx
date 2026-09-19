@@ -118,7 +118,7 @@ export default function Home() {
 
     try {
       const response = await fetch(
-        "http://localhost:5000/api/crop-recommendation",
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/crop-recommendation`,
         {
           method: "POST",
           headers: {
