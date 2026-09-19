@@ -1,3 +1,4 @@
 ai-service/crop-recommendation/model/*.pkl filter=lfs diff=lfs merge=lfs -text
 ai-service/plant-disease/model/*.keras filter=lfs diff=lfs merge=lfs -text
 ai-service/yield-prediction/model/*.pkl filter=lfs diff=lfs merge=lfs -text
+ai-service/yield-prediction/dataset/previous_yield_lookup.zip filter=lfs diff=lfs merge=lfs -text
