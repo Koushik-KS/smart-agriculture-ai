@@ -317,15 +317,16 @@ app.get("/api/weather", async (req, res) => {
       "&forecast_days=1" +
       "&timezone=auto";
 
-    const response = await fetch(weatherUrl);
+    /* =====================================================
+       WEATHER API REQUEST
+       Using axios instead of fetch
+    ===================================================== */
 
-    if (!response.ok) {
-      throw new Error(
-        `Weather API returned ${response.status}`
-      );
-    }
+    const response = await axios.get(weatherUrl, {
+      timeout: 30000,
+    });
 
-    const weather = await response.json();
+    const weather = response.data;
 
     const currentTemperature =
       weather.current?.temperature_2m ?? null;
@@ -369,7 +370,7 @@ app.get("/api/weather", async (req, res) => {
   } catch (error) {
     console.error(
       "Weather API error:",
-      error.message
+      error.response?.data || error.message
     );
 
     res.status(500).json({
@@ -503,28 +504,32 @@ app.get("/api/previous-yield", (req, res) => {
    CROP RECOMMENDATION
 ========================================================= */
 
-app.post("/api/crop-recommendation", async (req, res) => {
-  try {
-    const response = await axios.post(
-      `${CROP_AI_URL}/predict`,
-      req.body,
-      {
-        timeout: 120000,
-      }
-    );
+app.post(
+  "/api/crop-recommendation",
+  async (req, res) => {
+    try {
+      const response = await axios.post(
+        `${CROP_AI_URL}/predict`,
+        req.body,
+        {
+          timeout: 120000,
+        }
+      );
 
-    res.json(response.data);
-  } catch (error) {
-    console.error(
-      "Crop AI service error:",
-      error.response?.data || error.message
-    );
+      res.json(response.data);
+    } catch (error) {
+      console.error(
+        "Crop AI service error:",
+        error.response?.data || error.message
+      );
 
-    res.status(500).json({
-      message: "Failed to get crop recommendation",
-    });
+      res.status(500).json({
+        message:
+          "Failed to get crop recommendation",
+      });
+    }
   }
-});
+);
 
 /* =========================================================
    PLANT DISEASE
@@ -584,56 +589,63 @@ app.post(
    YIELD PREDICTION
 ========================================================= */
 
-app.post("/api/yield-prediction", async (req, res) => {
-  try {
-    const response = await axios.post(
-      `${YIELD_AI_URL}/predict`,
-      req.body,
-      {
-        timeout: 120000,
-      }
-    );
+app.post(
+  "/api/yield-prediction",
+  async (req, res) => {
+    try {
+      const response = await axios.post(
+        `${YIELD_AI_URL}/predict`,
+        req.body,
+        {
+          timeout: 120000,
+        }
+      );
 
-    res.json(response.data);
-  } catch (error) {
-    console.error(
-      "Yield AI service error:",
-      error.response?.data || error.message
-    );
+      res.json(response.data);
+    } catch (error) {
+      console.error(
+        "Yield AI service error:",
+        error.response?.data || error.message
+      );
 
-    res.status(500).json({
-      message: "Failed to predict crop yield",
-    });
+      res.status(500).json({
+        message:
+          "Failed to predict crop yield",
+      });
+    }
   }
-});
+);
 
 /* =========================================================
    RECOMMENDATION ENGINE
 ========================================================= */
 
-app.post("/api/recommendation", async (req, res) => {
-  try {
-    const response = await axios.post(
-      `${RECOMMENDATION_AI_URL}/recommend`,
-      req.body,
-      {
-        timeout: 120000,
-      }
-    );
+app.post(
+  "/api/recommendation",
+  async (req, res) => {
+    try {
+      const response = await axios.post(
+        `${RECOMMENDATION_AI_URL}/recommend`,
+        req.body,
+        {
+          timeout: 120000,
+        }
+      );
 
-    res.json(response.data);
-  } catch (error) {
-    console.error(
-      "Recommendation AI service error:",
-      error.response?.data || error.message
-    );
+      res.json(response.data);
+    } catch (error) {
+      console.error(
+        "Recommendation AI service error:",
+        error.response?.data || error.message
+      );
 
-    res.status(500).json({
-      message:
-        "Failed to generate agricultural recommendation",
-    });
+      res.status(500).json({
+        message:
+          "Failed to generate agricultural recommendation",
+      });
+    }
   }
-});
+);
 
 /* =========================================================
    INTEGRATED AI WORKFLOW
@@ -759,9 +771,10 @@ app.post(
         ),
       ];
 
-      const validationError = validations.find(
-        (message) => message !== null
-      );
+      const validationError =
+        validations.find(
+          (message) => message !== null
+        );
 
       if (validationError) {
         return res.status(400).json({
