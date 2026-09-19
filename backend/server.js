@@ -15,12 +15,9 @@ const app = express();
 
 const PORT = process.env.PORT || 5000;
 
-/*
- * Live Render AI services.
- *
- * Environment variables can override these values.
- * This means the same code works both locally and on Render.
- */
+/* =========================================================
+   LIVE RENDER AI SERVICES
+========================================================= */
 
 const CROP_AI_URL =
   process.env.CROP_AI_URL ||
@@ -39,15 +36,32 @@ const RECOMMENDATION_AI_URL =
   "https://smart-agriculture-recommendation-ai.onrender.com";
 
 /* =========================================================
-   MIDDLEWARE
+   CORS CONFIGURATION
+========================================================= */
+
+const corsOptions = {
+  origin: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+
+/*
+   Explicitly handle browser preflight requests.
+*/
+app.options(/.*/, cors(corsOptions));
+
+app.use(express.json());
+
+/* =========================================================
+   FILE UPLOAD
 ========================================================= */
 
 const upload = multer({
   storage: multer.memoryStorage(),
 });
-
-app.use(cors());
-app.use(express.json());
 
 /* =========================================================
    YIELD LOOKUP DATABASE
@@ -140,10 +154,6 @@ app.get("/api/geocode", async (req, res) => {
     const cleanState = String(state).trim();
     const cleanDistrict = String(district).trim();
 
-    /* -----------------------------------------------------
-       Open-Meteo search helper
-    ----------------------------------------------------- */
-
     async function searchLocation(query) {
       const geocodeUrl =
         "https://geocoding-api.open-meteo.com/v1/search" +
@@ -165,10 +175,6 @@ app.get("/api/geocode", async (req, res) => {
       return data.results || [];
     }
 
-    /* -----------------------------------------------------
-       Score location
-    ----------------------------------------------------- */
-
     function scoreLocation(location) {
       let score = 0;
 
@@ -181,17 +187,9 @@ app.get("/api/geocode", async (req, res) => {
 
       const country = normalizeText(location.country);
 
-      /* ---------------------------------------------------
-         Only accept India
-      --------------------------------------------------- */
-
       if (country !== "india") {
         return -1;
       }
-
-      /* ---------------------------------------------------
-         District matching
-      --------------------------------------------------- */
 
       if (locationName === expectedDistrict) {
         score += 100;
@@ -205,10 +203,6 @@ app.get("/api/geocode", async (req, res) => {
         score += 40;
       }
 
-      /* ---------------------------------------------------
-         State matching
-      --------------------------------------------------- */
-
       if (admin1 === expectedState) {
         score += 60;
       }
@@ -216,10 +210,6 @@ app.get("/api/geocode", async (req, res) => {
       if (admin1.includes(expectedState)) {
         score += 20;
       }
-
-      /* ---------------------------------------------------
-         Prefer administrative locations
-      --------------------------------------------------- */
 
       const featureCode = String(
         location.feature_code || ""
@@ -232,10 +222,6 @@ app.get("/api/geocode", async (req, res) => {
       return score;
     }
 
-    /* -----------------------------------------------------
-       Multiple search strategies
-    ----------------------------------------------------- */
-
     const searchQueries = [
       `${cleanDistrict}, ${cleanState}, India`,
       `${cleanDistrict}, India`,
@@ -244,10 +230,6 @@ app.get("/api/geocode", async (req, res) => {
 
     let bestLocation = null;
     let bestScore = -1;
-
-    /* -----------------------------------------------------
-       Search
-    ----------------------------------------------------- */
 
     for (const query of searchQueries) {
       try {
@@ -275,19 +257,11 @@ app.get("/api/geocode", async (req, res) => {
       }
     }
 
-    /* -----------------------------------------------------
-       No location found
-    ----------------------------------------------------- */
-
     if (!bestLocation) {
       return res.status(404).json({
         message: `Location not found for ${cleanDistrict}, ${cleanState}.`,
       });
     }
-
-    /* -----------------------------------------------------
-       Return location
-    ----------------------------------------------------- */
 
     console.log(
       `Location found: ${bestLocation.name}, ${
