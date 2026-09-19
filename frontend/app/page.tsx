@@ -118,7 +118,7 @@ export default function Home() {
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/crop-recommendation`,
+        "/api/crop-recommendation",
         {
           method: "POST",
           headers: {
@@ -585,7 +585,7 @@ export default function Home() {
 
 /* =========================================================
    COMPONENTS
-   ========================================================= */
+========================================================= */
 
 function StatPill({
   icon,
@@ -635,7 +635,7 @@ function FeatureMiniCard({
 
 /* =========================================================
    FIELD ICON
-   ========================================================= */
+========================================================= */
 
 function FieldIcon({
   type,
@@ -675,7 +675,7 @@ function FieldIcon({
 
 /* =========================================================
    SVG ICONS
-   ========================================================= */
+========================================================= */
 
 function PlantIcon() {
   return (
