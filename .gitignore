@@ -16,3 +16,11 @@ venv/
 # AI model files
 *.pkl
 ai-service/yield-prediction/dataset/Crop_Wise_Area_Production_Yield/*.csv
+
+# Generated yield lookup files
+ai-service/yield-prediction/dataset/previous_yield_lookup.csv
+ai-service/yield-prediction/dataset/previous_yield_lookup_unique.csv
+ai-service/yield-prediction/dataset/previous_yield_lookup.db
+
+# Accidental local files
+tatus
