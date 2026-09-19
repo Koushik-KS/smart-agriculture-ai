@@ -16,10 +16,21 @@ export async function POST(request: NextRequest) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
+        cache: "no-store",
       }
     );
 
-    const data = await response.json();
+    const text = await response.text();
+
+    let data;
+
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = {
+        message: text || "Backend returned an invalid response.",
+      };
+    }
 
     return NextResponse.json(data, {
       status: response.status,
@@ -29,7 +40,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message: "Failed to connect to crop recommendation service.",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to connect to crop recommendation service.",
       },
       { status: 500 }
     );
