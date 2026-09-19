@@ -43,19 +43,16 @@ export async function POST(request: NextRequest) {
       error
     );
 
-    return NextResponse.json(
-      {
-        message: "Proxy error",
-        error:
-          error instanceof Error
-            ? error.message
-            : String(error),
-        cause:
-          error instanceof Error && error.cause
-            ? String(error.cause)
-            : null,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : String(error),
+      cause:
+        error instanceof Error && error.cause
+          ? String(error.cause)
+          : null,
+    });
   }
 }
