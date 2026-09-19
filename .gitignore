@@ -15,3 +15,4 @@ venv/
 
 # AI model files
 *.pkl
+ai-service/yield-prediction/dataset/Crop_Wise_Area_Production_Yield/*.csv
