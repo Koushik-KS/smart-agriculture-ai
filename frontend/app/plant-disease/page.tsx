@@ -43,9 +43,7 @@ export default function PlantDiseasePage() {
 
   const handleFile = (selectedFile: File) => {
     if (!selectedFile.type.startsWith("image/")) {
-      setError(
-        "Please select a valid plant image."
-      );
+      setError("Please select a valid plant image.");
       return;
     }
 
@@ -104,8 +102,13 @@ export default function PlantDiseasePage() {
 
       formData.append("file", file);
 
+      /*
+       * PRODUCTION BACKEND
+       *
+       * Do NOT use localhost here.
+       */
       const response = await fetch(
-        "http://localhost:5000/api/plant-disease",
+        "https://smart-agriculture-backend-cpuf.onrender.com/api/plant-disease",
         {
           method: "POST",
           body: formData,
@@ -167,9 +170,7 @@ export default function PlantDiseasePage() {
 
       <div className="mx-auto max-w-6xl">
 
-        {/* =====================================================
-            HEADER
-        ===================================================== */}
+        {/* HEADER */}
 
         <section className="mb-10 text-center">
 
@@ -218,9 +219,7 @@ export default function PlantDiseasePage() {
 
         </section>
 
-        {/* =====================================================
-            ERROR
-        ===================================================== */}
+        {/* ERROR */}
 
         {error && (
           <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
@@ -244,15 +243,11 @@ export default function PlantDiseasePage() {
           </div>
         )}
 
-        {/* =====================================================
-            MAIN WORKSPACE
-        ===================================================== */}
+        {/* MAIN WORKSPACE */}
 
         <section className="grid gap-7 lg:grid-cols-5">
 
-          {/* ===================================================
-              UPLOAD / PREVIEW
-          =================================================== */}
+          {/* UPLOAD / PREVIEW */}
 
           <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-2xl shadow-green-900/10 backdrop-blur-xl md:p-8 lg:col-span-3">
 
@@ -312,9 +307,7 @@ export default function PlantDiseasePage() {
                 >
 
                   <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-green-100 to-emerald-50 text-green-700 shadow-lg shadow-green-900/10">
-
                     <UploadIcon />
-
                   </div>
 
                   <h3 className="mt-6 text-xl font-black text-gray-900">
@@ -380,9 +373,7 @@ export default function PlantDiseasePage() {
                         <div className="absolute inset-5 rounded-2xl border border-green-300/60" />
 
                         <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full border border-white/20 bg-black/60 px-4 py-2 text-xs font-black text-white backdrop-blur-md">
-
                           Scanning leaf...
-
                         </div>
                       </>
                     )}
@@ -396,9 +387,7 @@ export default function PlantDiseasePage() {
                 <div className="mt-4 flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4">
 
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-700">
-
                     <CheckIcon />
-
                   </div>
 
                   <div className="min-w-0 flex-1">
@@ -477,9 +466,7 @@ export default function PlantDiseasePage() {
 
           </div>
 
-          {/* ===================================================
-              MODEL INFORMATION
-          =================================================== */}
+          {/* MODEL INFORMATION */}
 
           <div className="lg:col-span-2">
 
@@ -506,9 +493,7 @@ export default function PlantDiseasePage() {
                 <div className="flex items-center justify-between">
 
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-green-300">
-
                     <BrainIcon />
-
                   </div>
 
                   <div className="flex items-center gap-2 rounded-full border border-green-400/20 bg-green-400/10 px-3 py-1.5">
@@ -602,14 +587,10 @@ export default function PlantDiseasePage() {
 
         </section>
 
-        {/* =====================================================
-            RESULT SECTION
-        ===================================================== */}
+        {/* RESULT SECTION */}
 
         {result && (
           <section className="mt-8">
-
-            {/* RESULT HEADER */}
 
             <div className="mb-5">
 
@@ -632,9 +613,7 @@ export default function PlantDiseasePage() {
                 <div className="flex items-start gap-4">
 
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-green-100 text-green-700">
-
                     <ScanIcon />
-
                   </div>
 
                   <div className="min-w-0">
@@ -814,9 +793,7 @@ export default function PlantDiseasePage() {
           </section>
         )}
 
-        {/* =====================================================
-            DISCLAIMER
-        ===================================================== */}
+        {/* DISCLAIMER */}
 
         <div className="mt-10 pb-8 text-center">
 
