@@ -11,16 +11,16 @@ const app = express();
 const PORT = 5000;
 
 const CROP_AI_URL =
-  "http://127.0.0.1:8000";
+  process.env.CROP_AI_URL || "http://127.0.0.1:8000";
 
 const DISEASE_AI_URL =
-  "http://127.0.0.1:8001";
+  process.env.DISEASE_AI_URL || "http://127.0.0.1:8001";
 
 const YIELD_AI_URL =
-  "http://127.0.0.1:8002";
+  process.env.YIELD_AI_URL || "http://127.0.0.1:8002";
 
 const RECOMMENDATION_AI_URL =
-  "http://127.0.0.1:8003";
+  process.env.RECOMMENDATION_AI_URL || "http://127.0.0.1:8003";
 
 const upload = multer({
   storage:
