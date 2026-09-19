@@ -990,37 +990,51 @@ export default function AIAnalysisPage() {
 
           </Link>
 
-          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:justify-end">
+          <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3">
 
-            <Link
-              href="/"
-              className="nav-link rounded-xl px-3 py-2 text-xs font-bold sm:px-4 sm:text-sm"
-            >
-              Dashboard
-            </Link>
+  <Link
+    href="/"
+    className="px-4 py-2 rounded-xl text-sm font-semibold text-[#176b3a] hover:bg-[#eefaf2] transition"
+  >
+    Dashboard
+  </Link>
 
-            <Link
-              href="/plant-disease"
-              className="nav-link rounded-xl px-3 py-2 text-xs font-bold sm:px-4 sm:text-sm"
-            >
-              Plant Disease
-            </Link>
+  <Link
+    href="/plant-disease"
+    className="px-4 py-2 rounded-xl text-sm font-semibold text-[#176b3a] hover:bg-[#eefaf2] transition"
+  >
+    Plant Disease
+  </Link>
 
-            <Link
-              href="/yield-prediction"
-              className="nav-link rounded-xl px-3 py-2 text-xs font-bold sm:px-4 sm:text-sm"
-            >
-              Yield Prediction
-            </Link>
+  <Link
+    href="/yield-prediction"
+    className="px-4 py-2 rounded-xl text-sm font-semibold text-[#176b3a] hover:bg-[#eefaf2] transition"
+  >
+    Yield Prediction
+  </Link>
 
-            <Link
-              href="/ai-analysis"
-              className="nav-active rounded-xl px-3 py-2 text-xs font-bold sm:px-4 sm:text-sm"
-            >
-              AI Analysis
-            </Link>
+  <Link
+    href="/recommendation"
+    className="px-4 py-2 rounded-xl text-sm font-semibold text-[#176b3a] hover:bg-[#eefaf2] transition"
+  >
+    Recommendation
+  </Link>
 
-          </div>
+  <Link
+    href="/weather"
+    className="px-4 py-2 rounded-xl text-sm font-semibold text-[#176b3a] hover:bg-[#eefaf2] transition"
+  >
+    Weather
+  </Link>
+
+  <Link
+    href="/ai-analysis"
+    className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-[#087f3e] shadow-lg"
+  >
+    AI Analysis
+  </Link>
+
+</div>
 
         </nav>
 
