@@ -1,5 +1,6 @@
 import json
 import numpy as np
+from pathlib import Path
 import tensorflow as tf
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
@@ -11,8 +12,8 @@ from io import BytesIO
 # MODEL CONFIGURATION
 # =========================================================
 
-MODEL_PATH = "model/plant_disease_model.keras"
-CLASS_NAMES_PATH = "model/class_names.json"
+MODEL_PATH = Path(__file__).resolve().parent / "model" / "plant_disease_model.keras"
+CLASS_NAMES_PATH = Path(__file__).resolve().parent / "model" / "class_names.json"
 
 IMG_SIZE = (224, 224)
 
