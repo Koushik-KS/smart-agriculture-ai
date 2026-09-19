@@ -20,19 +20,15 @@ const PORT = process.env.PORT || 5000;
 ========================================================= */
 
 const CROP_AI_URL =
-  process.env.CROP_AI_URL ||
   "https://smart-agriculture-crop-ai.onrender.com";
 
 const DISEASE_AI_URL =
-  process.env.DISEASE_AI_URL ||
   "https://smart-agriculture-disease-ai.onrender.com";
 
 const YIELD_AI_URL =
-  process.env.YIELD_AI_URL ||
   "https://smart-agriculture-yield-ai.onrender.com";
 
 const RECOMMENDATION_AI_URL =
-  process.env.RECOMMENDATION_AI_URL ||
   "https://smart-agriculture-recommendation-ai.onrender.com";
 
 /* =========================================================
@@ -48,9 +44,6 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-/*
-   Explicitly handle browser preflight requests.
-*/
 app.options(/.*/, cors(corsOptions));
 
 app.use(express.json());
