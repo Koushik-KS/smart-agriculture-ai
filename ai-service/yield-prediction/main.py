@@ -1,10 +1,11 @@
 import joblib
 import pandas as pd
+from pathlib import Path
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 
-MODEL_PATH = "model/yield_prediction_model.pkl"
+MODEL_PATH = Path(__file__).resolve().parent / "model" / "yield_prediction_model.pkl"
 
 
 app = FastAPI(
