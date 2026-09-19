@@ -107,13 +107,13 @@ export default function PlantDiseasePage() {
        *
        * Do NOT use localhost here.
        */
-      const response = await fetch(
-        "https://smart-agriculture-backend-cpuf.onrender.com/api/plant-disease",
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+    const response = await fetch(
+  "/api/plant-disease",
+  {
+    method: "POST",
+    body: formData,
+  }
+);
 
       const data =
         await response.json();
