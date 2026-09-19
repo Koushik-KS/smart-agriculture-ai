@@ -1,5 +1,6 @@
 import joblib
 import pandas as pd
+from pathlib import Path
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -16,9 +17,8 @@ app = FastAPI(
 # LOAD TRAINED MODEL
 # =========================================================
 
-model = joblib.load(
-    "model/crop_recommendation_model.pkl"
-)
+MODEL_PATH = Path(__file__).resolve().parent / "model" / "crop_recommendation_model.pkl"
+model = joblib.load(MODEL_PATH)
 
 
 # =========================================================
@@ -290,3 +290,5 @@ def predict_crop(data: CropInput):
             feature_importance
 
     }
+
+
