@@ -20,15 +20,17 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    const text = await response.text();
+    const responseText = await response.text();
 
-    let data;
+    let data: unknown;
 
     try {
-      data = JSON.parse(text);
+      data = JSON.parse(responseText);
     } catch {
       data = {
-        message: text || "Backend returned an invalid response.",
+        message:
+          responseText ||
+          "Backend returned an invalid response.",
       };
     }
 
@@ -36,14 +38,22 @@ export async function POST(request: NextRequest) {
       status: response.status,
     });
   } catch (error) {
-    console.error("Crop recommendation proxy error:", error);
+    console.error(
+      "Crop recommendation proxy error:",
+      error
+    );
 
     return NextResponse.json(
       {
-        message:
+        message: "Proxy error",
+        error:
           error instanceof Error
             ? error.message
-            : "Failed to connect to crop recommendation service.",
+            : String(error),
+        cause:
+          error instanceof Error && error.cause
+            ? String(error.cause)
+            : null,
       },
       { status: 500 }
     );
