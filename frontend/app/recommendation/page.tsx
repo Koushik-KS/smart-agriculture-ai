@@ -1,24 +1,21 @@
 
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 
 type RecommendationResult = {
-  recommended_crop: string;
-  crop_confidence: number;
-  predicted_disease: string | null;
-  disease_confidence: number | null;
-  predicted_yield: number | null;
-  overall_status: string;
-  alerts: string[];
-  recommendations: string[];
+  status?: string;
+  message?: string;
+  alerts?: string[];
+  recommendations?: string[];
+  [key: string]: unknown;
 };
 
 export default function RecommendationPage() {
   const [formData, setFormData] = useState({
     recommended_crop: "Rice",
     crop_confidence: "85",
-    predicted_disease: "Tomato___healthy",
+    detected_disease: "Tomato___healthy",
     disease_confidence: "95",
     predicted_yield: "2.2",
   });
@@ -30,70 +27,58 @@ export default function RecommendationPage() {
   const [error, setError] = useState("");
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = event.target;
+
+    setFormData((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+
+    setResult(null);
+    setError("");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
 
     setLoading(true);
     setError("");
     setResult(null);
 
     try {
-      const response = await fetch(
-        "/api/recommendation",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            recommended_crop:
-              formData.recommended_crop,
-
-            crop_confidence:
-              Number(formData.crop_confidence),
-
-            predicted_disease:
-              formData.predicted_disease || null,
-
-            disease_confidence:
-              formData.disease_confidence
-                ? Number(formData.disease_confidence)
-                : null,
-
-            predicted_yield:
-              formData.predicted_yield
-                ? Number(formData.predicted_yield)
-                : null,
-          }),
-        }
-      );
+      const response = await fetch("/api/recommendation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recommended_crop: formData.recommended_crop,
+          crop_confidence: Number(formData.crop_confidence),
+          detected_disease: formData.detected_disease,
+          disease_confidence: Number(
+            formData.disease_confidence
+          ),
+          predicted_yield: Number(formData.predicted_yield),
+        }),
+      });
 
       const responseText = await response.text();
 
-      let data: any;
+      let data: RecommendationResult;
 
       try {
         data = JSON.parse(responseText);
       } catch {
         throw new Error(
-          responseText ||
-            "The server returned an invalid response."
+          responseText || "Invalid response received from server."
         );
       }
 
       if (!response.ok) {
         throw new Error(
-          data.message ||
-            data.detail ||
-            "Recommendation failed."
+          data.message || "Failed to generate agricultural recommendation."
         );
       }
 
@@ -102,795 +87,414 @@ export default function RecommendationPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "Something went wrong."
+          : "Failed to generate agricultural recommendation."
       );
     } finally {
       setLoading(false);
     }
   };
 
-  const cleanDiseaseName = (
-    name: string | null
-  ) => {
-    if (!name) return "Not available";
+  const resetForm = () => {
+    setFormData({
+      recommended_crop: "Rice",
+      crop_confidence: "85",
+      detected_disease: "Tomato___healthy",
+      disease_confidence: "95",
+      predicted_yield: "2.2",
+    });
 
-    return name
-      .replace(/___/g, " - ")
-      .replace(/_/g, " ");
+    setResult(null);
+    setError("");
   };
 
   return (
-    <main className="page">
-      <div className="glow glowOne"></div>
-      <div className="glow glowTwo"></div>
+    <main className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-5xl">
+        {/* HEADER */}
 
-      <section className="container">
-        <header className="header">
-          <div className="logo">SA</div>
+        <header className="mb-10 flex items-start gap-5">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-green-800 text-2xl font-black text-white shadow-xl shadow-green-900/20">
+            SA
+          </div>
 
           <div>
-            <div className="eyebrow">
-              SMART AGRICULTURE AI
-            </div>
-
-            <h1>
+            <h1 className="text-3xl font-black tracking-tight text-green-900 sm:text-5xl">
               Agricultural Recommendation
             </h1>
 
-            <p>
-              Combine AI predictions to generate
-              meaningful agricultural insights.
+            <p className="mt-3 text-sm leading-6 text-gray-500 sm:text-base">
+              Combine AI predictions to generate meaningful
+              agricultural insights.
             </p>
           </div>
         </header>
 
-        <section className="card">
-          <div className="sectionHeader">
-            <div className="number">01</div>
+        {/* MAIN CARD */}
+
+        <section className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-2xl shadow-green-900/10 backdrop-blur-xl md:p-9">
+          {/* FORM HEADER */}
+
+          <div className="mb-8 flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-green-100 text-sm font-black text-green-700">
+              01
+            </div>
 
             <div>
-              <h2>AI Prediction Inputs</h2>
+              <h2 className="text-xl font-black text-gray-900 sm:text-2xl">
+                AI Prediction Inputs
+              </h2>
 
-              <p>
-                Enter the outputs generated by the
-                agriculture AI modules.
+              <p className="mt-1 text-sm leading-6 text-gray-400">
+                Enter the outputs generated by the agriculture AI
+                modules.
               </p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit}>
-            <div className="grid">
-              <div className="field">
-                <label htmlFor="recommended_crop">
-                  Recommended Crop
-                </label>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* RECOMMENDED CROP */}
 
-                <input
-                  id="recommended_crop"
-                  name="recommended_crop"
-                  value={formData.recommended_crop}
+              <InputField
+                label="Recommended Crop"
+                name="recommended_crop"
+                value={formData.recommended_crop}
+                onChange={handleChange}
+                placeholder="Rice"
+                type="text"
+              />
+
+              {/* CROP CONFIDENCE */}
+
+              <InputField
+                label="Crop Confidence"
+                name="crop_confidence"
+                value={formData.crop_confidence}
+                onChange={handleChange}
+                placeholder="85"
+                type="number"
+                unit="%"
+                min="0"
+                max="100"
+                step="0.01"
+              />
+
+              {/* DETECTED DISEASE */}
+
+              <InputField
+                label="Detected Disease"
+                name="detected_disease"
+                value={formData.detected_disease}
+                onChange={handleChange}
+                placeholder="Tomato___healthy"
+                type="text"
+              />
+
+              {/* DISEASE CONFIDENCE */}
+
+              <InputField
+                label="Disease Confidence"
+                name="disease_confidence"
+                value={formData.disease_confidence}
+                onChange={handleChange}
+                placeholder="95"
+                type="number"
+                unit="%"
+                min="0"
+                max="100"
+                step="0.01"
+              />
+
+              {/* PREDICTED YIELD */}
+
+              <div className="md:col-span-2">
+                <InputField
+                  label="Predicted Yield"
+                  name="predicted_yield"
+                  value={formData.predicted_yield}
                   onChange={handleChange}
-                  placeholder="e.g. Rice"
-                  required
+                  placeholder="2.2"
+                  type="number"
+                  unit="t/ha"
+                  min="0"
+                  step="0.001"
                 />
-              </div>
-
-              <div className="field">
-                <label htmlFor="crop_confidence">
-                  Crop Confidence
-                </label>
-
-                <div className="inputUnit">
-                  <input
-                    id="crop_confidence"
-                    name="crop_confidence"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={formData.crop_confidence}
-                    onChange={handleChange}
-                    required
-                  />
-
-                  <span>%</span>
-                </div>
-              </div>
-
-              <div className="field">
-                <label htmlFor="predicted_disease">
-                  Detected Disease
-                </label>
-
-                <input
-                  id="predicted_disease"
-                  name="predicted_disease"
-                  value={formData.predicted_disease}
-                  onChange={handleChange}
-                  placeholder="e.g. Tomato___healthy"
-                />
-              </div>
-
-              <div className="field">
-                <label htmlFor="disease_confidence">
-                  Disease Confidence
-                </label>
-
-                <div className="inputUnit">
-                  <input
-                    id="disease_confidence"
-                    name="disease_confidence"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={formData.disease_confidence}
-                    onChange={handleChange}
-                  />
-
-                  <span>%</span>
-                </div>
-              </div>
-
-              <div className="field full">
-                <label htmlFor="predicted_yield">
-                  Predicted Yield
-                </label>
-
-                <div className="inputUnit">
-                  <input
-                    id="predicted_yield"
-                    name="predicted_yield"
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value={formData.predicted_yield}
-                    onChange={handleChange}
-                  />
-
-                  <span>t/ha</span>
-                </div>
               </div>
             </div>
 
+            {/* SUBMIT BUTTON */}
+
             <button
-              className="button"
               type="submit"
               disabled={loading}
+              className="mt-8 flex w-full items-center justify-center gap-3 rounded-2xl bg-green-800 px-6 py-4 text-sm font-black text-white shadow-xl shadow-green-900/20 transition hover:bg-green-900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? (
                 <>
-                  <span className="spinner"></span>
-                  Generating...
+                  <span className="button-spinner" />
+                  Generating Recommendation...
                 </>
               ) : (
                 <>
                   Generate Recommendation
-                  <span>→</span>
+                  <ArrowIcon />
                 </>
               )}
             </button>
           </form>
 
+          {/* ERROR */}
+
           {error && (
-            <div className="error">
-              <span className="errorIcon">!</span>
+            <div className="mt-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 font-black text-red-600">
+                !
+              </div>
 
               <div>
-                <strong>
-                  Recommendation failed
-                </strong>
+                <p className="font-black text-red-800">
+                  Recommendation Failed
+                </p>
 
-                <p>{error}</p>
+                <p className="mt-1 text-sm leading-6 text-red-700">
+                  {error}
+                </p>
               </div>
             </div>
           )}
 
-          {result && (
-            <section className="result">
-              <div className="resultTop">
-                <div>
-                  <div className="resultEyebrow">
-                    AI ANALYSIS COMPLETE
-                  </div>
+          {/* RESULT */}
 
-                  <h2>
+          {result && (
+            <section className="mt-8 rounded-3xl border border-green-100 bg-green-50/70 p-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-100 text-green-700">
+                  <CheckIcon />
+                </div>
+
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-green-700">
+                    02 • AI Result
+                  </p>
+
+                  <h2 className="mt-1 text-2xl font-black text-gray-900">
                     Agricultural Insights
                   </h2>
                 </div>
-
-                <div
-                  className={
-                    result.overall_status === "normal"
-                      ? "status normal"
-                      : "status warning"
-                  }
-                >
-                  {result.overall_status === "normal"
-                    ? "Normal"
-                    : "Attention Required"}
-                </div>
               </div>
 
-              <div className="summary">
-                <div className="summaryCard">
-                  <span className="summaryIcon">
-                    CR
-                  </span>
+              {/* STATUS */}
 
-                  <div>
-                    <small>
-                      RECOMMENDED CROP
-                    </small>
+              {result.status && (
+                <div className="mt-6 rounded-2xl border border-green-200 bg-white p-4">
+                  <p className="text-xs font-black uppercase tracking-wider text-gray-400">
+                    Recommendation Status
+                  </p>
 
-                    <strong>
-                      {result.recommended_crop}
-                    </strong>
-
-                    <span>
-                      {result.crop_confidence}%
-                      confidence
-                    </span>
-                  </div>
+                  <p className="mt-2 text-lg font-black capitalize text-green-800">
+                    {result.status.replaceAll("_", " ")}
+                  </p>
                 </div>
+              )}
 
-                <div className="summaryCard">
-                  <span className="summaryIcon">
-                    PD
-                  </span>
+              {/* ALERTS */}
 
-                  <div>
-                    <small>
-                      PLANT CONDITION
-                    </small>
+              {Array.isArray(result.alerts) &&
+                result.alerts.length > 0 && (
+                  <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-5">
+                    <h3 className="font-black text-red-800">
+                      Alerts
+                    </h3>
 
-                    <strong>
-                      {cleanDiseaseName(
-                        result.predicted_disease
+                    <ul className="mt-3 space-y-2">
+                      {result.alerts.map((alert, index) => (
+                        <li
+                          key={index}
+                          className="text-sm leading-6 text-red-700"
+                        >
+                          {alert}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+              {/* RECOMMENDATIONS */}
+
+              {Array.isArray(result.recommendations) &&
+                result.recommendations.length > 0 && (
+                  <div className="mt-5 rounded-2xl border border-green-200 bg-white p-5">
+                    <h3 className="font-black text-green-800">
+                      Recommendations
+                    </h3>
+
+                    <ul className="mt-3 space-y-3">
+                      {result.recommendations.map(
+                        (recommendation, index) => (
+                          <li
+                            key={index}
+                            className="flex items-start gap-3 text-sm leading-6 text-gray-700"
+                          >
+                            <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-green-600" />
+                            {recommendation}
+                          </li>
+                        )
                       )}
-                    </strong>
-
-                    {result.disease_confidence !==
-                      null && (
-                      <span>
-                        {result.disease_confidence}%
-                        confidence
-                      </span>
-                    )}
+                    </ul>
                   </div>
-                </div>
+                )}
 
-                <div className="summaryCard">
-                  <span className="summaryIcon">
-                    YD
-                  </span>
+              {/* COMPLETE RESPONSE */}
 
-                  <div>
-                    <small>
-                      PREDICTED YIELD
-                    </small>
+              <div className="mt-5 rounded-2xl border border-gray-200 bg-white p-5">
+                <h3 className="font-black text-gray-900">
+                  Complete AI Response
+                </h3>
 
-                    <strong>
-                      {result.predicted_yield ??
-                        "N/A"}
-                    </strong>
-
-                    {result.predicted_yield !==
-                      null && (
-                      <span>
-                        Tonnes/Hectare
-                      </span>
-                    )}
-                  </div>
-                </div>
+                <pre className="mt-4 overflow-x-auto whitespace-pre-wrap break-words rounded-xl bg-gray-950 p-4 text-xs leading-6 text-green-300">
+                  {JSON.stringify(result, null, 2)}
+                </pre>
               </div>
 
-              {result.alerts.length > 0 && (
-                <div className="insightBlock alertBlock">
-                  <h3>Attention</h3>
+              {/* RESET */}
 
-                  {result.alerts.map(
-                    (alert, index) => (
-                      <div
-                        className="insight"
-                        key={index}
-                      >
-                        <span>!</span>
-
-                        <p>{alert}</p>
-                      </div>
-                    )
-                  )}
-                </div>
-              )}
-
-              {result.recommendations.length > 0 && (
-                <div className="insightBlock">
-                  <h3>Recommendations</h3>
-
-                  {result.recommendations.map(
-                    (recommendation, index) => (
-                      <div
-                        className="insight"
-                        key={index}
-                      >
-                        <span>✓</span>
-
-                        <p>{recommendation}</p>
-                      </div>
-                    )
-                  )}
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={resetForm}
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-6 py-3.5 text-sm font-black text-gray-700 transition hover:border-green-300 hover:bg-green-50 hover:text-green-800"
+              >
+                <RefreshIcon />
+                Make Another Recommendation
+              </button>
             </section>
           )}
         </section>
 
-        <footer>
-          Powered by Smart Agriculture AI
+        {/* FOOTER */}
+
+        <footer className="py-8 text-center">
+          <p className="text-xs leading-6 text-gray-400">
+            Smart Agriculture AI combines model outputs to provide
+            decision-support information. Recommendations should be
+            interpreted together with local agricultural conditions.
+          </p>
         </footer>
-      </section>
-
-      <style jsx>{`
-        * {
-          box-sizing: border-box;
-        }
-
-        .page {
-          min-height: 100vh;
-          padding: 55px 20px;
-          position: relative;
-          overflow: hidden;
-          background:
-            linear-gradient(
-              135deg,
-              #f0fdf4,
-              #f8fafc 50%,
-              #ecfdf5
-            );
-          color: #17221b;
-        }
-
-        .glow {
-          position: absolute;
-          width: 420px;
-          height: 420px;
-          border-radius: 50%;
-          filter: blur(110px);
-          opacity: 0.25;
-          pointer-events: none;
-        }
-
-        .glowOne {
-          top: -200px;
-          left: -160px;
-          background: #4ade80;
-        }
-
-        .glowTwo {
-          right: -180px;
-          bottom: -180px;
-          background: #86efac;
-        }
-
-        .container {
-          width: 100%;
-          max-width: 950px;
-          margin: auto;
-          position: relative;
-          z-index: 1;
-        }
-
-        .header {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-          margin-bottom: 30px;
-        }
-
-        .logo {
-          width: 70px;
-          height: 70px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 20px;
-          background: #166534;
-          color: white;
-          font-size: 18px;
-          font-weight: 800;
-          letter-spacing: 1px;
-          box-shadow:
-            0 12px 30px
-            rgba(22, 101, 52, 0.2);
-        }
-
-        .eyebrow,
-        .resultEyebrow {
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 2px;
-          color: #15803d;
-        }
-
-        .eyebrow {
-          margin-bottom: 5px;
-        }
-
-        h1 {
-          margin: 0;
-          font-size: 36px;
-          letter-spacing: -1px;
-          color: #14532d;
-        }
-
-        .header p {
-          margin: 7px 0 0;
-          color: #64748b;
-          font-size: 14px;
-        }
-
-        .card {
-          padding: 35px;
-          border-radius: 24px;
-          background: rgba(255, 255, 255, 0.93);
-          box-shadow:
-            0 20px 60px
-            rgba(15, 23, 42, 0.08);
-          border: 1px solid
-            rgba(255, 255, 255, 0.8);
-        }
-
-        .sectionHeader {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          margin-bottom: 28px;
-        }
-
-        .number {
-          width: 42px;
-          height: 42px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #dcfce7;
-          color: #166534;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        .sectionHeader h2 {
-          margin: 0;
-          font-size: 20px;
-          color: #1e293b;
-        }
-
-        .sectionHeader p {
-          margin: 4px 0 0;
-          font-size: 13px;
-          color: #94a3b8;
-        }
-
-        .grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 22px;
-        }
-
-        .field {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .field.full {
-          grid-column: 1 / -1;
-        }
-
-        label {
-          margin-bottom: 8px;
-          font-size: 13px;
-          font-weight: 700;
-          color: #334155;
-        }
-
-        input {
-          width: 100%;
-          height: 48px;
-          border: 1px solid #dbe3df;
-          border-radius: 10px;
-          background: white;
-          padding: 0 14px;
-          outline: none;
-          font-size: 14px;
-          color: #1e293b;
-          transition: 0.2s;
-        }
-
-        input:focus {
-          border-color: #22c55e;
-          box-shadow:
-            0 0 0 3px
-            rgba(34, 197, 94, 0.12);
-        }
-
-        .inputUnit {
-          position: relative;
-        }
-
-        .inputUnit input {
-          padding-right: 65px;
-        }
-
-        .inputUnit span {
-          position: absolute;
-          right: 14px;
-          top: 50%;
-          transform: translateY(-50%);
-          font-size: 12px;
-          font-weight: 700;
-          color: #64748b;
-        }
-
-        .button {
-          width: 100%;
-          height: 54px;
-          margin-top: 30px;
-          border: none;
-          border-radius: 12px;
-          background: #166534;
-          color: white;
-          font-size: 15px;
-          font-weight: 700;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          box-shadow:
-            0 8px 20px
-            rgba(22, 101, 52, 0.18);
-          transition: 0.2s;
-        }
-
-        .button:hover:not(:disabled) {
-          background: #14532d;
-          transform: translateY(-1px);
-        }
-
-        .button:disabled {
-          opacity: 0.7;
-          cursor: not-allowed;
-        }
-
-        .spinner {
-          width: 17px;
-          height: 17px;
-          border: 2px solid
-            rgba(255, 255, 255, 0.3);
-          border-top-color: white;
-          border-radius: 50%;
-          animation: spin 0.7s linear infinite;
-        }
-
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
-        .error {
-          margin-top: 25px;
-          padding: 16px;
-          border-radius: 12px;
-          display: flex;
-          gap: 12px;
-          background: #fef2f2;
-          border: 1px solid #fecaca;
-          color: #991b1b;
-        }
-
-        .errorIcon {
-          width: 22px;
-          height: 22px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 50%;
-          background: #fee2e2;
-          font-weight: 800;
-        }
-
-        .error strong {
-          font-size: 14px;
-        }
-
-        .error p {
-          margin: 4px 0 0;
-          font-size: 13px;
-          word-break: break-word;
-        }
-
-        .result {
-          margin-top: 32px;
-          padding: 28px;
-          border-radius: 18px;
-          background:
-            linear-gradient(
-              135deg,
-              #f0fdf4,
-              #dcfce7
-            );
-          border: 1px solid #bbf7d0;
-        }
-
-        .resultTop {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 20px;
-        }
-
-        .result h2 {
-          margin: 5px 0 0;
-          color: #14532d;
-          font-size: 22px;
-        }
-
-        .status {
-          padding: 8px 13px;
-          border-radius: 999px;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        .normal {
-          background: #dcfce7;
-          color: #166534;
-        }
-
-        .warning {
-          background: #fef3c7;
-          color: #92400e;
-        }
-
-        .summary {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 14px;
-          margin-top: 25px;
-        }
-
-        .summaryCard {
-          padding: 17px;
-          border-radius: 13px;
-          background: rgba(255, 255, 255, 0.75);
-          display: flex;
-          gap: 12px;
-          align-items: flex-start;
-        }
-
-        .summaryIcon {
-          min-width: 32px;
-          height: 32px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 8px;
-          background: #dcfce7;
-          color: #166534;
-          font-size: 10px;
-          font-weight: 800;
-        }
-
-        .summaryCard div {
-          display: flex;
-          flex-direction: column;
-          min-width: 0;
-        }
-
-        .summaryCard small {
-          font-size: 9px;
-          font-weight: 800;
-          letter-spacing: 1px;
-          color: #64748b;
-        }
-
-        .summaryCard strong {
-          margin-top: 5px;
-          font-size: 15px;
-          color: #14532d;
-          overflow-wrap: anywhere;
-        }
-
-        .summaryCard div > span {
-          margin-top: 3px;
-          font-size: 11px;
-          color: #64748b;
-        }
-
-        .insightBlock {
-          margin-top: 22px;
-          padding: 18px;
-          border-radius: 13px;
-          background: rgba(255, 255, 255, 0.7);
-        }
-
-        .alertBlock {
-          background: #fffbeb;
-          border: 1px solid #fde68a;
-        }
-
-        .insightBlock h3 {
-          margin: 0 0 12px;
-          font-size: 14px;
-          color: #334155;
-        }
-
-        .insight {
-          display: flex;
-          gap: 10px;
-          margin-top: 10px;
-        }
-
-        .insight > span {
-          font-weight: 800;
-          color: #16a34a;
-        }
-
-        .insight p {
-          margin: 0;
-          font-size: 13px;
-          line-height: 1.6;
-          color: #475569;
-        }
-
-        footer {
-          margin-top: 24px;
-          text-align: center;
-          color: #94a3b8;
-          font-size: 12px;
-        }
-
-        @media (max-width: 700px) {
-          .page {
-            padding: 30px 15px;
-          }
-
-          .header {
-            align-items: flex-start;
-          }
-
-          h1 {
-            font-size: 27px;
-          }
-
-          .logo {
-            width: 55px;
-            height: 55px;
-            font-size: 15px;
-          }
-
-          .card {
-            padding: 22px;
-          }
-
-          .grid,
-          .summary {
-            grid-template-columns: 1fr;
-          }
-
-          .field.full {
-            grid-column: auto;
-          }
-
-          .resultTop {
-            align-items: flex-start;
-            flex-direction: column;
-          }
-        }
-      `}</style>
+      </div>
     </main>
+  );
+}
+
+/* =========================================================
+   INPUT FIELD
+========================================================= */
+
+function InputField({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+  type,
+  unit,
+  min,
+  max,
+  step,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => void;
+  placeholder?: string;
+  type: string;
+  unit?: string;
+  min?: string;
+  max?: string;
+  step?: string;
+}) {
+  return (
+    <div>
+      <label
+        htmlFor={name}
+        className="mb-2 block text-xs font-black uppercase tracking-wider text-gray-500"
+      >
+        {label}
+      </label>
+
+      <div className="relative">
+        <input
+          id={name}
+          name={name}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          type={type}
+          min={min}
+          max={max}
+          step={step}
+          required
+          className={`w-full rounded-2xl border border-gray-200 bg-gray-50/80 px-4 py-3.5 text-sm font-semibold text-gray-900 outline-none transition focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-100 ${
+            unit ? "pr-20" : ""
+          }`}
+        />
+
+        {unit && (
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-white px-2 py-1 text-xs font-black text-gray-500 shadow-sm">
+            {unit}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   ICONS
+========================================================= */
+
+function ArrowIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className="h-5 w-5"
+    >
+      <path d="M5 12h14" />
+      <path d="m13 6 6 6-6 6" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      className="h-5 w-5"
+    >
+      <path d="m5 12 4 4L19 6" />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+    >
+      <path d="M20 11a8 8 0 0 0-14.8-4L4 9" />
+      <path d="M4 5v4h4" />
+      <path d="M4 13a8 8 0 0 0 14.8 4L20 15" />
+      <path d="M20 19v-4h-4" />
+    </svg>
   );
 }
