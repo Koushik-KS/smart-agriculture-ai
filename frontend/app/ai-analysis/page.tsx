@@ -109,8 +109,7 @@ type AnalysisResult = {
 ========================================================= */
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
+  "https://smart-agriculture-backend-cpuf.onrender.com";
 
 /* =========================================================
    INITIAL FORM
@@ -421,14 +420,13 @@ export default function AIAnalysisPage() {
       setPreviousYieldError("");
 
       try {
-        const params =
-          new URLSearchParams({
-            year: year_start,
-            state_name,
-            district_name,
-            crop_name,
-            season,
-          });
+        const params = new URLSearchParams({
+          year_start,
+          state_name,
+          district_name,
+          crop_name,
+          season,
+        });
 
         const response =
           await fetch(
@@ -799,7 +797,11 @@ export default function AIAnalysisPage() {
         return "Please upload a plant leaf image.";
       }
 
-      if (!previousYield) {
+      if (
+        !previousYield ||
+        previousYield.previous_yield === null ||
+        !Number.isFinite(Number(previousYield.previous_yield))
+      ) {
         return "Previous year yield could not be retrieved for the selected year, location, crop and season.";
       }
 
@@ -835,7 +837,11 @@ export default function AIAnalysisPage() {
       return;
     }
 
-    if (!previousYield) {
+    if (
+      !previousYield ||
+      previousYield.previous_yield === null ||
+      !Number.isFinite(Number(previousYield.previous_yield))
+    ) {
       setError(
         "Previous year yield could not be retrieved."
       );
