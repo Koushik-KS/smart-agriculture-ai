@@ -1,3 +1,4 @@
+
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
@@ -74,7 +75,10 @@ const upload = multer({
   },
 
   fileFilter: (req, file, callback) => {
-    if (!file.mimetype || !file.mimetype.startsWith("image/")) {
+    if (
+      !file.mimetype ||
+      !file.mimetype.startsWith("image/")
+    ) {
       return callback(
         new Error("Only image files are allowed.")
       );

@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL =
