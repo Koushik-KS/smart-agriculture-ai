@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL =
@@ -49,9 +48,11 @@ export async function POST(request: NextRequest) {
         message:
           error instanceof Error
             ? error.message
-            : "Failed to connect to backend.",
+            : "Failed to connect to recommendation backend.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
