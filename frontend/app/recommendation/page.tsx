@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -10,24 +11,34 @@ interface RecommendationResponse {
   predicted_disease?: string | null;
   disease_confidence?: number | null;
   predicted_yield?: number | null;
-  overall_status?: string;
+  overall_status?: string | null;
   alerts?: string[];
   recommendations?: string[];
+  message?: string;
+  error?: string;
+  detail?: string;
 }
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://smart-agriculture-backend-cpuf.onrender.com";
+interface FormState {
+  recommended_crop: string;
+  crop_confidence: string;
+  selected_crop: string;
+  predicted_disease: string;
+  disease_confidence: string;
+  predicted_yield: string;
+}
+
+const initialForm: FormState = {
+  recommended_crop: "Rice",
+  crop_confidence: "85",
+  selected_crop: "Rice",
+  predicted_disease: "Tomato___healthy",
+  disease_confidence: "95",
+  predicted_yield: "2.2",
+};
 
 export default function RecommendationPage() {
-  const [form, setForm] = useState({
-    recommended_crop: "Rice",
-    crop_confidence: "85",
-    selected_crop: "Rice",
-    predicted_disease: "Tomato___healthy",
-    disease_confidence: "95",
-    predicted_yield: "2.2",
-  });
+  const [form, setForm] = useState<FormState>(initialForm);
 
   const [result, setResult] =
     useState<RecommendationResponse | null>(null);
@@ -36,13 +47,15 @@ export default function RecommendationPage() {
   const [error, setError] = useState("");
 
   function handleChange(
-    field: keyof typeof form,
+    field: keyof FormState,
     value: string
   ) {
     setForm((previous) => ({
       ...previous,
       [field]: value,
     }));
+
+    setError("");
   }
 
   function formatDiseaseName(
@@ -57,7 +70,9 @@ export default function RecommendationPage() {
       .replace(/_/g, " ");
   }
 
-  function formatStatus(status: string | undefined) {
+  function formatStatus(
+    status: string | null | undefined
+  ) {
     if (!status) {
       return "Unknown";
     }
@@ -69,18 +84,12 @@ export default function RecommendationPage() {
       );
   }
 
-  function getStatusClass(status: string | undefined) {
+  function getStatusClass(
+    status: string | null | undefined
+  ) {
     const normalizedStatus = String(
       status || ""
     ).toLowerCase();
-
-    if (
-      normalizedStatus.includes("attention") ||
-      normalizedStatus.includes("warning") ||
-      normalizedStatus.includes("risk")
-    ) {
-      return "status-warning";
-    }
 
     if (
       normalizedStatus.includes("critical") ||
@@ -89,13 +98,76 @@ export default function RecommendationPage() {
       return "status-danger";
     }
 
+    if (
+      normalizedStatus.includes("warning") ||
+      normalizedStatus.includes("attention") ||
+      normalizedStatus.includes("risk")
+    ) {
+      return "status-warning";
+    }
+
     return "status-normal";
+  }
+
+  function validateForm() {
+    if (
+      !form.recommended_crop.trim() ||
+      !form.selected_crop.trim() ||
+      !form.predicted_disease.trim()
+    ) {
+      return "Please fill in all required text fields.";
+    }
+
+    const cropConfidence = Number(
+      form.crop_confidence
+    );
+
+    const diseaseConfidence = Number(
+      form.disease_confidence
+    );
+
+    const predictedYield = Number(
+      form.predicted_yield
+    );
+
+    if (
+      !Number.isFinite(cropConfidence) ||
+      cropConfidence < 0 ||
+      cropConfidence > 100
+    ) {
+      return "Crop confidence must be between 0 and 100.";
+    }
+
+    if (
+      !Number.isFinite(diseaseConfidence) ||
+      diseaseConfidence < 0 ||
+      diseaseConfidence > 100
+    ) {
+      return "Disease confidence must be between 0 and 100.";
+    }
+
+    if (
+      !Number.isFinite(predictedYield) ||
+      predictedYield < 0
+    ) {
+      return "Predicted yield must be a valid non-negative number.";
+    }
+
+    return "";
   }
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
+
+    const validationError = validateForm();
+
+    if (validationError) {
+      setError(validationError);
+      setResult(null);
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -121,62 +193,14 @@ export default function RecommendationPage() {
         Number(form.predicted_yield),
     };
 
-    if (
-      !requestBody.recommended_crop ||
-      !requestBody.selected_crop ||
-      !requestBody.predicted_disease
-    ) {
-      setError(
-        "Please fill in all required text fields."
-      );
-      setLoading(false);
-      return;
-    }
-
-    if (
-      !Number.isFinite(
-        requestBody.crop_confidence
-      ) ||
-      requestBody.crop_confidence < 0 ||
-      requestBody.crop_confidence > 100
-    ) {
-      setError(
-        "Crop confidence must be between 0 and 100."
-      );
-      setLoading(false);
-      return;
-    }
-
-    if (
-      !Number.isFinite(
-        requestBody.disease_confidence
-      ) ||
-      requestBody.disease_confidence < 0 ||
-      requestBody.disease_confidence > 100
-    ) {
-      setError(
-        "Disease confidence must be between 0 and 100."
-      );
-      setLoading(false);
-      return;
-    }
-
-    if (
-      !Number.isFinite(
-        requestBody.predicted_yield
-      ) ||
-      requestBody.predicted_yield < 0
-    ) {
-      setError(
-        "Predicted yield must be a valid positive number."
-      );
-      setLoading(false);
-      return;
-    }
-
     try {
+      /*
+       * Use the Next.js proxy route.
+       *
+       * Do not use localhost or a direct Render URL here.
+       */
       const response = await fetch(
-        `${API_URL}/api/recommendation`,
+        "/api/recommendation",
         {
           method: "POST",
 
@@ -190,16 +214,16 @@ export default function RecommendationPage() {
 
       const responseText = await response.text();
 
-      let data: RecommendationResponse & {
-        message?: string;
-        error?: string;
-      };
+      let data: RecommendationResponse;
 
       try {
-        data = JSON.parse(responseText);
+        data = JSON.parse(
+          responseText
+        ) as RecommendationResponse;
       } catch {
         throw new Error(
-          "The server returned an invalid response."
+          responseText ||
+            "The server returned an invalid response."
         );
       }
 
@@ -207,6 +231,7 @@ export default function RecommendationPage() {
         throw new Error(
           data.message ||
             data.error ||
+            data.detail ||
             "Failed to generate recommendation."
         );
       }
@@ -216,7 +241,7 @@ export default function RecommendationPage() {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Unable to connect to the backend."
+          : "Unable to connect to the recommendation service."
       );
     } finally {
       setLoading(false);
@@ -224,467 +249,13 @@ export default function RecommendationPage() {
   }
 
   function resetForm() {
-    setForm({
-      recommended_crop: "Rice",
-      crop_confidence: "85",
-      selected_crop: "Rice",
-      predicted_disease: "Tomato___healthy",
-      disease_confidence: "95",
-      predicted_yield: "2.2",
-    });
-
+    setForm(initialForm);
     setResult(null);
     setError("");
   }
 
   return (
     <main className="page-container">
-      <style jsx>{`
-        .page-container {
-          min-height: 100vh;
-          background: #f5f7f4;
-          color: #17231b;
-          padding: 0;
-        }
-
-        .navbar {
-          width: 100%;
-          background: #ffffff;
-          border-bottom: 1px solid #e4e9e3;
-          padding: 18px 5%;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 24px;
-          flex-wrap: wrap;
-        }
-
-        .brand {
-          color: #1c633c;
-          font-size: 21px;
-          font-weight: 800;
-          text-decoration: none;
-          white-space: nowrap;
-        }
-
-        .nav-links {
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        .nav-link {
-          color: #526157;
-          text-decoration: none;
-          font-size: 13px;
-          font-weight: 600;
-          padding: 9px 12px;
-          border-radius: 8px;
-          transition: 0.2s ease;
-        }
-
-        .nav-link:hover {
-          background: #edf5ee;
-          color: #1c633c;
-        }
-
-        .nav-active {
-          background: #e4f2e6;
-          color: #1c633c;
-        }
-
-        .content {
-          width: min(1180px, 92%);
-          margin: 0 auto;
-          padding: 48px 0 70px;
-        }
-
-        .heading {
-          margin-bottom: 32px;
-        }
-
-        .eyebrow {
-          color: #348252;
-          font-size: 12px;
-          font-weight: 800;
-          letter-spacing: 1.4px;
-          text-transform: uppercase;
-          margin-bottom: 10px;
-        }
-
-        .title {
-          font-size: clamp(30px, 4vw, 46px);
-          line-height: 1.1;
-          font-weight: 800;
-          letter-spacing: -1.5px;
-          margin: 0 0 14px;
-        }
-
-        .description {
-          max-width: 700px;
-          color: #69766d;
-          font-size: 15px;
-          line-height: 1.7;
-          margin: 0;
-        }
-
-        .layout {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          gap: 24px;
-          align-items: start;
-        }
-
-        .card {
-          background: #ffffff;
-          border: 1px solid #e3eae3;
-          border-radius: 18px;
-          padding: 28px;
-          box-shadow: 0 8px 30px rgba(27, 57, 35, 0.04);
-        }
-
-        .card-heading {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 24px;
-        }
-
-        .icon-box {
-          width: 42px;
-          height: 42px;
-          border-radius: 12px;
-          background: #e6f3e8;
-          color: #287444;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .card-title {
-          font-size: 19px;
-          font-weight: 800;
-          margin: 0;
-        }
-
-        .card-subtitle {
-          color: #7a867d;
-          font-size: 12px;
-          margin-top: 4px;
-        }
-
-        .form-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 18px;
-        }
-
-        .form-group {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .full-width {
-          grid-column: 1 / -1;
-        }
-
-        .label {
-          color: #394a3d;
-          font-size: 12px;
-          font-weight: 750;
-        }
-
-        .input {
-          width: 100%;
-          box-sizing: border-box;
-          border: 1px solid #dce5dc;
-          border-radius: 10px;
-          padding: 12px 13px;
-          color: #24352a;
-          background: #fbfdfb;
-          font-size: 14px;
-          outline: none;
-          transition: 0.2s ease;
-        }
-
-        .input:focus {
-          border-color: #4b9862;
-          box-shadow: 0 0 0 3px #e4f2e6;
-        }
-
-        .helper {
-          color: #879389;
-          font-size: 11px;
-          line-height: 1.5;
-        }
-
-        .actions {
-          display: flex;
-          gap: 12px;
-          margin-top: 26px;
-        }
-
-        .button {
-          border: 0;
-          border-radius: 10px;
-          padding: 13px 18px;
-          font-size: 13px;
-          font-weight: 750;
-          cursor: pointer;
-          transition: 0.2s ease;
-        }
-
-        .primary-button {
-          background: #287444;
-          color: #ffffff;
-          flex: 1;
-        }
-
-        .primary-button:hover {
-          background: #1f6037;
-        }
-
-        .primary-button:disabled {
-          background: #94b59d;
-          cursor: wait;
-        }
-
-        .secondary-button {
-          background: #edf2ed;
-          color: #48604e;
-        }
-
-        .secondary-button:hover {
-          background: #e0e9e1;
-        }
-
-        .error-box {
-          margin-top: 20px;
-          border: 1px solid #f1caca;
-          background: #fff3f3;
-          color: #a43d3d;
-          border-radius: 10px;
-          padding: 13px;
-          font-size: 13px;
-          line-height: 1.5;
-        }
-
-        .empty-state {
-          min-height: 310px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          text-align: center;
-          color: #879389;
-          padding: 20px;
-        }
-
-        .empty-icon {
-          width: 64px;
-          height: 64px;
-          border-radius: 18px;
-          background: #edf5ee;
-          color: #548161;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 18px;
-        }
-
-        .empty-title {
-          color: #44594a;
-          font-size: 17px;
-          font-weight: 750;
-          margin: 0 0 8px;
-        }
-
-        .empty-text {
-          max-width: 300px;
-          font-size: 13px;
-          line-height: 1.6;
-          margin: 0;
-        }
-
-        .status-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 24px;
-        }
-
-        .status-label {
-          color: #7b887e;
-          font-size: 12px;
-          font-weight: 700;
-        }
-
-        .status-badge {
-          padding: 7px 11px;
-          border-radius: 30px;
-          font-size: 11px;
-          font-weight: 800;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
-        .status-normal {
-          color: #246a3d;
-          background: #e3f3e7;
-        }
-
-        .status-warning {
-          color: #95601b;
-          background: #fff0d7;
-        }
-
-        .status-danger {
-          color: #a13c3c;
-          background: #ffe4e4;
-        }
-
-        .metric-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-          margin-bottom: 26px;
-        }
-
-        .metric {
-          background: #f6f9f6;
-          border: 1px solid #e7eee7;
-          border-radius: 12px;
-          padding: 15px;
-        }
-
-        .metric-label {
-          color: #7a887d;
-          font-size: 11px;
-          font-weight: 650;
-          margin-bottom: 8px;
-        }
-
-        .metric-value {
-          color: #234f31;
-          font-size: 19px;
-          font-weight: 800;
-          overflow-wrap: anywhere;
-        }
-
-        .metric-small {
-          color: #78877b;
-          font-size: 11px;
-          margin-top: 5px;
-        }
-
-        .result-section {
-          margin-top: 24px;
-        }
-
-        .section-title {
-          color: #344b3a;
-          font-size: 14px;
-          font-weight: 800;
-          margin: 0 0 12px;
-        }
-
-        .list {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-          margin: 0;
-          padding: 0;
-          list-style: none;
-        }
-
-        .list-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          border: 1px solid #e7eee7;
-          background: #f9fbf9;
-          border-radius: 10px;
-          padding: 12px;
-          color: #58695c;
-          font-size: 13px;
-          line-height: 1.6;
-        }
-
-        .list-marker {
-          color: #378052;
-          font-weight: 900;
-          flex-shrink: 0;
-        }
-
-        .no-items {
-          color: #8a968c;
-          background: #f8faf8;
-          border-radius: 10px;
-          padding: 14px;
-          font-size: 12px;
-        }
-
-        .disclaimer {
-          color: #89958b;
-          font-size: 11px;
-          line-height: 1.6;
-          border-top: 1px solid #e8eee8;
-          margin-top: 26px;
-          padding-top: 18px;
-        }
-
-        @media (max-width: 900px) {
-          .layout {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 650px) {
-          .navbar {
-            padding: 16px 4%;
-          }
-
-          .nav-links {
-            justify-content: flex-start;
-          }
-
-          .nav-link {
-            font-size: 12px;
-            padding: 8px 9px;
-          }
-
-          .content {
-            width: 90%;
-            padding-top: 32px;
-          }
-
-          .card {
-            padding: 20px;
-          }
-
-          .form-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .full-width {
-            grid-column: auto;
-          }
-
-          .metric-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .actions {
-            flex-direction: column;
-          }
-        }
-      `}</style>
-
       <nav className="navbar">
         <Link href="/" className="brand">
           Smart Agriculture AI
@@ -733,52 +304,37 @@ export default function RecommendationPage() {
       </nav>
 
       <section className="content">
-        <div className="heading">
-          <div className="eyebrow">
+        <header className="heading">
+          <p className="eyebrow">
             Agricultural Intelligence
-          </div>
+          </p>
 
-          <h1 className="title">
+          <h1>
             Smart Recommendation Engine
           </h1>
 
           <p className="description">
             Combine crop recommendation, plant disease
-            detection, and yield prediction results to
-            generate useful agricultural alerts and
+            detection, and yield prediction outputs to
+            generate agricultural alerts and
             recommendations.
           </p>
-        </div>
+        </header>
 
         <div className="layout">
           <section className="card">
             <div className="card-heading">
               <div className="icon-box">
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 3v18" />
-                  <path d="M5 8h14" />
-                  <path d="M5 16h14" />
-                  <path d="M7 3h10" />
-                  <path d="M7 21h10" />
-                </svg>
+                01
               </div>
 
               <div>
-                <h2 className="card-title">
+                <h2>
                   Model Inputs
                 </h2>
 
-                <p className="card-subtitle">
-                  Enter the outputs generated by the
+                <p>
+                  Enter the outputs generated by your
                   machine learning models.
                 </p>
               </div>
@@ -786,9 +342,8 @@ export default function RecommendationPage() {
 
             <form onSubmit={handleSubmit}>
               <div className="form-grid">
-                <div className="form-group">
+                <div className="field">
                   <label
-                    className="label"
                     htmlFor="recommended_crop"
                   >
                     Recommended Crop
@@ -796,7 +351,6 @@ export default function RecommendationPage() {
 
                   <input
                     id="recommended_crop"
-                    className="input"
                     type="text"
                     value={form.recommended_crop}
                     onChange={(event) =>
@@ -810,9 +364,8 @@ export default function RecommendationPage() {
                   />
                 </div>
 
-                <div className="form-group">
+                <div className="field">
                   <label
-                    className="label"
                     htmlFor="crop_confidence"
                   >
                     Crop Confidence (%)
@@ -820,7 +373,6 @@ export default function RecommendationPage() {
 
                   <input
                     id="crop_confidence"
-                    className="input"
                     type="number"
                     min="0"
                     max="100"
@@ -836,9 +388,8 @@ export default function RecommendationPage() {
                   />
                 </div>
 
-                <div className="form-group">
+                <div className="field">
                   <label
-                    className="label"
                     htmlFor="selected_crop"
                   >
                     Selected Crop
@@ -846,7 +397,6 @@ export default function RecommendationPage() {
 
                   <input
                     id="selected_crop"
-                    className="input"
                     type="text"
                     value={form.selected_crop}
                     onChange={(event) =>
@@ -860,22 +410,19 @@ export default function RecommendationPage() {
                   />
 
                   <span className="helper">
-                    Crop selected for the agricultural
-                    analysis.
+                    Crop selected for agricultural analysis.
                   </span>
                 </div>
 
-                <div className="form-group">
+                <div className="field">
                   <label
-                    className="label"
                     htmlFor="predicted_yield"
                   >
-                    Predicted Yield
+                    Predicted Yield (t/ha)
                   </label>
 
                   <input
                     id="predicted_yield"
-                    className="input"
                     type="number"
                     min="0"
                     step="0.01"
@@ -890,13 +437,12 @@ export default function RecommendationPage() {
                   />
 
                   <span className="helper">
-                    Measured in tonnes per hectare.
+                    Estimated yield in tonnes per hectare.
                   </span>
                 </div>
 
-                <div className="form-group full-width">
+                <div className="field full-width">
                   <label
-                    className="label"
                     htmlFor="predicted_disease"
                   >
                     Detected Disease
@@ -904,7 +450,6 @@ export default function RecommendationPage() {
 
                   <input
                     id="predicted_disease"
-                    className="input"
                     type="text"
                     value={form.predicted_disease}
                     onChange={(event) =>
@@ -923,9 +468,8 @@ export default function RecommendationPage() {
                   </span>
                 </div>
 
-                <div className="form-group full-width">
+                <div className="field full-width">
                   <label
-                    className="label"
                     htmlFor="disease_confidence"
                   >
                     Disease Confidence (%)
@@ -933,7 +477,6 @@ export default function RecommendationPage() {
 
                   <input
                     id="disease_confidence"
-                    className="input"
                     type="number"
                     min="0"
                     max="100"
@@ -953,7 +496,7 @@ export default function RecommendationPage() {
               <div className="actions">
                 <button
                   type="submit"
-                  className="button primary-button"
+                  className="primary-button"
                   disabled={loading}
                 >
                   {loading
@@ -963,7 +506,7 @@ export default function RecommendationPage() {
 
                 <button
                   type="button"
-                  className="button secondary-button"
+                  className="secondary-button"
                   onClick={resetForm}
                   disabled={loading}
                 >
@@ -973,49 +516,56 @@ export default function RecommendationPage() {
             </form>
 
             {error && (
-              <div className="error-box">
+              <div
+                className="error-box"
+                role="alert"
+              >
                 {error}
               </div>
             )}
           </section>
 
           <section className="card">
-            {result ? (
-              <>
-                <div className="card-heading">
-                  <div className="icon-box">
-                    <svg
-                      width="22"
-                      height="22"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M12 3l2.8 5.7L21 9.6l-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3z" />
-                    </svg>
-                  </div>
+            <div className="card-heading">
+              <div className="icon-box">
+                02
+              </div>
 
-                  <div>
-                    <h2 className="card-title">
-                      Analysis Result
-                    </h2>
+              <div>
+                <h2>
+                  Analysis Result
+                </h2>
 
-                    <p className="card-subtitle">
-                      Generated by the recommendation
-                      engine.
-                    </p>
-                  </div>
+                <p>
+                  Results returned by the recommendation
+                  engine.
+                </p>
+              </div>
+            </div>
+
+            {!result ? (
+              <div className="empty-state">
+                <div className="empty-icon">
+                  AI
                 </div>
 
+                <h3>
+                  No Analysis Yet
+                </h3>
+
+                <p>
+                  Submit the model outputs to view
+                  agricultural alerts and recommendations.
+                </p>
+              </div>
+            ) : (
+              <>
                 <div className="status-row">
-                  <span className="status-label">
+                  <span>
                     Overall Status
                   </span>
 
-                  <span
+                  <strong
                     className={`status-badge ${getStatusClass(
                       result.overall_status
                     )}`}
@@ -1023,180 +573,541 @@ export default function RecommendationPage() {
                     {formatStatus(
                       result.overall_status
                     )}
-                  </span>
+                  </strong>
                 </div>
 
                 <div className="metric-grid">
                   <div className="metric">
-                    <div className="metric-label">
+                    <span>
                       Recommended Crop
-                    </div>
+                    </span>
 
-                    <div className="metric-value">
+                    <strong>
                       {result.recommended_crop ||
                         "Not available"}
-                    </div>
-
-                    <div className="metric-small">
-                      Model recommendation
-                    </div>
+                    </strong>
                   </div>
 
                   <div className="metric">
-                    <div className="metric-label">
+                    <span>
                       Crop Confidence
-                    </div>
+                    </span>
 
-                    <div className="metric-value">
+                    <strong>
                       {result.crop_confidence != null
                         ? `${result.crop_confidence}%`
                         : "N/A"}
-                    </div>
-
-                    <div className="metric-small">
-                      Classification confidence
-                    </div>
+                    </strong>
                   </div>
 
                   <div className="metric">
-                    <div className="metric-label">
+                    <span>
                       Detected Disease
-                    </div>
+                    </span>
 
-                    <div className="metric-value">
+                    <strong>
                       {formatDiseaseName(
                         result.predicted_disease
                       )}
-                    </div>
-
-                    <div className="metric-small">
-                      Plant disease result
-                    </div>
+                    </strong>
                   </div>
 
                   <div className="metric">
-                    <div className="metric-label">
+                    <span>
                       Predicted Yield
-                    </div>
+                    </span>
 
-                    <div className="metric-value">
+                    <strong>
                       {result.predicted_yield != null
                         ? `${result.predicted_yield} t/ha`
                         : "N/A"}
-                    </div>
-
-                    <div className="metric-small">
-                      Estimated agricultural yield
-                    </div>
+                    </strong>
                   </div>
                 </div>
 
-                <div className="result-section">
-                  <h3 className="section-title">
-                    Alerts
-                  </h3>
+                <ResultList
+                  title="Alerts"
+                  items={result.alerts}
+                  emptyText="No alerts were generated."
+                />
 
-                  {result.alerts &&
-                  result.alerts.length > 0 ? (
-                    <ul className="list">
-                      {result.alerts.map(
-                        (alert, index) => (
-                          <li
-                            className="list-item"
-                            key={`alert-${index}`}
-                          >
-                            <span className="list-marker">
-                              !
-                            </span>
-
-                            <span>{alert}</span>
-                          </li>
-                        )
-                      )}
-                    </ul>
-                  ) : (
-                    <div className="no-items">
-                      No alerts were generated for the
-                      provided inputs.
-                    </div>
-                  )}
-                </div>
-
-                <div className="result-section">
-                  <h3 className="section-title">
-                    Recommendations
-                  </h3>
-
-                  {result.recommendations &&
-                  result.recommendations.length > 0 ? (
-                    <ul className="list">
-                      {result.recommendations.map(
-                        (recommendation, index) => (
-                          <li
-                            className="list-item"
-                            key={`recommendation-${index}`}
-                          >
-                            <span className="list-marker">
-                              ✓
-                            </span>
-
-                            <span>
-                              {recommendation}
-                            </span>
-                          </li>
-                        )
-                      )}
-                    </ul>
-                  ) : (
-                    <div className="no-items">
-                      No recommendations were generated.
-                    </div>
-                  )}
-                </div>
+                <ResultList
+                  title="Recommendations"
+                  items={result.recommendations}
+                  emptyText="No recommendations were generated."
+                />
 
                 <p className="disclaimer">
-                  This result is generated from the
-                  provided model outputs. It should be
-                  treated as decision-support information,
-                  not as a replacement for professional
-                  agricultural advice or field inspection.
+                  This result is decision-support
+                  information based on the supplied
+                  model outputs. Verify it with local
+                  agricultural conditions and qualified
+                  agricultural professionals.
                 </p>
               </>
-            ) : (
-              <div className="empty-state">
-                <div className="empty-icon">
-                  <svg
-                    width="30"
-                    height="30"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 3v18" />
-                    <path d="M5 8h14" />
-                    <path d="M5 16h14" />
-                    <path d="M7 3h10" />
-                    <path d="M7 21h10" />
-                  </svg>
-                </div>
-
-                <h3 className="empty-title">
-                  No Analysis Yet
-                </h3>
-
-                <p className="empty-text">
-                  Enter the outputs from your AI models
-                  and generate a recommendation to view
-                  agricultural alerts and guidance here.
-                </p>
-              </div>
             )}
           </section>
         </div>
       </section>
+
+      <style jsx>{`
+        .page-container {
+          min-height: 100vh;
+          background: #f5f7f4;
+          color: #17231b;
+        }
+
+        .navbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 20px;
+          flex-wrap: wrap;
+          padding: 18px 5%;
+          background: #ffffff;
+          border-bottom: 1px solid #e3eae3;
+        }
+
+        .brand {
+          color: #1c633c;
+          font-size: 21px;
+          font-weight: 800;
+          text-decoration: none;
+          white-space: nowrap;
+        }
+
+        .nav-links {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 7px;
+          flex-wrap: wrap;
+        }
+
+        .nav-link {
+          padding: 9px 11px;
+          border-radius: 8px;
+          color: #526157;
+          font-size: 13px;
+          font-weight: 600;
+          text-decoration: none;
+          transition: 0.2s ease;
+        }
+
+        .nav-link:hover,
+        .nav-active {
+          color: #1c633c;
+          background: #e4f2e6;
+        }
+
+        .content {
+          width: min(1180px, 92%);
+          margin: 0 auto;
+          padding: 48px 0 70px;
+        }
+
+        .heading {
+          margin-bottom: 30px;
+        }
+
+        .eyebrow {
+          margin: 0 0 10px;
+          color: #348252;
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 1.4px;
+          text-transform: uppercase;
+        }
+
+        h1 {
+          margin: 0 0 14px;
+          color: #17231b;
+          font-size: clamp(30px, 4vw, 46px);
+          line-height: 1.1;
+          letter-spacing: -1.5px;
+        }
+
+        .description {
+          max-width: 700px;
+          margin: 0;
+          color: #69766d;
+          font-size: 15px;
+          line-height: 1.7;
+        }
+
+        .layout {
+          display: grid;
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+          gap: 24px;
+          align-items: start;
+        }
+
+        .card {
+          padding: 28px;
+          border: 1px solid #e3eae3;
+          border-radius: 18px;
+          background: #ffffff;
+          box-shadow:
+            0 8px 30px rgba(27, 57, 35, 0.04);
+        }
+
+        .card-heading {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 24px;
+        }
+
+        .icon-box,
+        .empty-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          width: 42px;
+          height: 42px;
+          border-radius: 12px;
+          background: #e6f3e8;
+          color: #287444;
+          font-weight: 800;
+        }
+
+        h2 {
+          margin: 0;
+          font-size: 19px;
+          font-weight: 800;
+        }
+
+        .card-heading p {
+          margin: 4px 0 0;
+          color: #7a867d;
+          font-size: 12px;
+        }
+
+        .form-grid {
+          display: grid;
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+          gap: 18px;
+        }
+
+        .field {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .full-width {
+          grid-column: 1 / -1;
+        }
+
+        label {
+          color: #394a3d;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        input {
+          width: 100%;
+          box-sizing: border-box;
+          padding: 12px 13px;
+          border: 1px solid #dce5dc;
+          border-radius: 10px;
+          outline: none;
+          color: #24352a;
+          background: #fbfdfb;
+          font-size: 14px;
+        }
+
+        input:focus {
+          border-color: #4b9862;
+          box-shadow: 0 0 0 3px #e4f2e6;
+        }
+
+        .helper {
+          color: #879389;
+          font-size: 11px;
+          line-height: 1.5;
+        }
+
+        .actions {
+          display: flex;
+          gap: 12px;
+          margin-top: 26px;
+        }
+
+        button {
+          padding: 13px 18px;
+          border: 0;
+          border-radius: 10px;
+          font-size: 13px;
+          font-weight: 750;
+          cursor: pointer;
+          transition: 0.2s ease;
+        }
+
+        button:disabled {
+          cursor: wait;
+          opacity: 0.65;
+        }
+
+        .primary-button {
+          flex: 1;
+          color: #ffffff;
+          background: #287444;
+        }
+
+        .primary-button:hover {
+          background: #1f6037;
+        }
+
+        .secondary-button {
+          color: #48604e;
+          background: #edf2ed;
+        }
+
+        .secondary-button:hover {
+          background: #e0e9e1;
+        }
+
+        .error-box {
+          margin-top: 20px;
+          padding: 13px;
+          border: 1px solid #f1caca;
+          border-radius: 10px;
+          color: #a43d3d;
+          background: #fff3f3;
+          font-size: 13px;
+          line-height: 1.5;
+        }
+
+        .empty-state {
+          min-height: 310px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          color: #879389;
+        }
+
+        .empty-icon {
+          width: 64px;
+          height: 64px;
+          margin-bottom: 18px;
+          border-radius: 18px;
+        }
+
+        .empty-state h3 {
+          margin: 0 0 8px;
+          color: #44594a;
+          font-size: 17px;
+        }
+
+        .empty-state p {
+          max-width: 300px;
+          margin: 0;
+          font-size: 13px;
+          line-height: 1.6;
+        }
+
+        .status-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 24px;
+          color: #7b887e;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .status-badge {
+          padding: 7px 11px;
+          border-radius: 30px;
+          font-size: 11px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .status-normal {
+          color: #246a3d;
+          background: #e3f3e7;
+        }
+
+        .status-warning {
+          color: #95601b;
+          background: #fff0d7;
+        }
+
+        .status-danger {
+          color: #a13c3c;
+          background: #ffe4e4;
+        }
+
+        .metric-grid {
+          display: grid;
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          margin-bottom: 26px;
+        }
+
+        .metric {
+          padding: 15px;
+          border: 1px solid #e7eee7;
+          border-radius: 12px;
+          background: #f6f9f6;
+        }
+
+        .metric span {
+          display: block;
+          margin-bottom: 8px;
+          color: #7a887d;
+          font-size: 11px;
+          font-weight: 650;
+        }
+
+        .metric strong {
+          display: block;
+          color: #234f31;
+          font-size: 18px;
+          overflow-wrap: anywhere;
+        }
+
+        .result-section {
+          margin-top: 24px;
+        }
+
+        .result-section h3 {
+          margin: 0 0 12px;
+          color: #344b3a;
+          font-size: 14px;
+          font-weight: 800;
+        }
+
+        .result-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          padding: 0;
+          margin: 0;
+          list-style: none;
+        }
+
+        .result-item,
+        .no-items {
+          padding: 12px;
+          border: 1px solid #e7eee7;
+          border-radius: 10px;
+          color: #58695c;
+          background: #f9fbf9;
+          font-size: 13px;
+          line-height: 1.6;
+        }
+
+        .result-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+        }
+
+        .marker {
+          color: #378052;
+          font-weight: 900;
+          flex-shrink: 0;
+        }
+
+        .disclaimer {
+          margin: 26px 0 0;
+          padding-top: 18px;
+          border-top: 1px solid #e8eee8;
+          color: #89958b;
+          font-size: 11px;
+          line-height: 1.6;
+        }
+
+        @media (max-width: 900px) {
+          .layout {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 650px) {
+          .navbar {
+            padding: 16px 4%;
+          }
+
+          .nav-links {
+            justify-content: flex-start;
+          }
+
+          .content {
+            width: 90%;
+            padding-top: 32px;
+          }
+
+          .card {
+            padding: 20px;
+          }
+
+          .form-grid,
+          .metric-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .full-width {
+            grid-column: auto;
+          }
+
+          .actions {
+            flex-direction: column;
+          }
+        }
+      `}</style>
     </main>
+  );
+}
+
+function ResultList({
+  title,
+  items,
+  emptyText,
+}: {
+  title: string;
+  items?: string[];
+  emptyText: string;
+}) {
+  return (
+    <section className="result-section">
+      <h3>
+        {title}
+      </h3>
+
+      {items && items.length > 0 ? (
+        <ul className="result-list">
+          {items.map((item, index) => (
+            <li
+              className="result-item"
+              key={`${title}-${index}`}
+            >
+              <span className="marker">
+                •
+              </span>
+
+              <span>
+                {item}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="no-items">
+          {emptyText}
+        </div>
+      )}
+    </section>
   );
 }
